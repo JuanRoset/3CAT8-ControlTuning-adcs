@@ -1,0 +1,11 @@
+{
+    "SimulationParameters": {
+      "start_epoch": 24012.44686469
+    },
+  
+    "SunActivity": {
+      "f107A": 150.0,
+      "f107": 150.0,
+      "ap": 8.0
+    }
+  }

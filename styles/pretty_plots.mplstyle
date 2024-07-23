@@ -1,0 +1,49 @@
+# A style sheet for matplotlib generating figures with large LaTeX labels for
+# publications.
+#
+# Author: Valentin Niess (niess@in2p3.fr)
+
+# Set a 3/4 aspect ratio with automatic layout.
+#figure.figsize: 8., 6.
+#figure.autolayout: true
+
+# Use LaTeX fonts
+font.family: serif
+font.serif: ComputerModern
+text.usetex: true
+
+# Backend options (42: use TrueType fonts)
+pdf.fonttype: 42
+ps.fonttype: 42
+
+# Set font sizes to 14 for paper figures
+axes.labelsize: 14
+axes.titlesize: 14
+axes.titlepad: 12
+xtick.labelsize: 14
+ytick.labelsize: 14
+axes.labelpad: 6
+legend.fontsize: 14
+legend.numpoints: 1
+legend.scatterpoints: 1
+legend.frameon: true
+legend.edgecolor: none
+
+# Set plot colors to cycle
+#axes.prop_cycle: cycler("color", ["#1D4E89", "#93003a", "7DCFB6", "#F79256", "#443c31","#2975b2", "#51a8c6", "#7adcdc", "#ffbbbd", "#ff6b95", "#e10054"])
+#axes.prop_cycle: cycler("color", ["#A63D40", "#89A253", "57879E", "#E9B872", "#151515"])
+axes.prop_cycle: cycler("color", ["#A73220", "#67991D", "175668", "#E9B872", "#151515"])
+
+# Set lines and ticks according to the `seaborn-paper` style sheet
+grid.linewidth: 0.6
+lines.linewidth: 1.0
+patch.linewidth: 0.24
+lines.markersize: 5.6
+lines.markeredgewidth: 0
+
+xtick.major.width: 0.8
+ytick.major.width: 0.8
+xtick.minor.width: 0.4
+ytick.minor.width: 0.4
+xtick.major.pad: 5.6
+ytick.major.pad: 5.6

@@ -1,0 +1,14 @@
+# Exclude VSCode specific files
+.vscode/
+*.code-workspace
+
+# Exclude .vscode folder settings
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Exclude build output
+build/
+bin/
+*.exe   # Example of Windows executable
