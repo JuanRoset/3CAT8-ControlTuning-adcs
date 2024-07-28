@@ -134,8 +134,6 @@ void simulation_fetch(double & simulation_orbits, double & delta_time, bool & pr
 void write_orbit_state(double delta_time, orbitalElements elements, sunActivity indices, std::string orbitPath, const double iteration_steps){
     // Function for calling the orbit propagation at all times and writing the results on the orbit file
 
-    std::cout << orbitPath << "\n";
-
     // Preallocate and store propagation of orbit positions for simulation time
     double velocity[3] = {0.0};
     double position[3] = {0.0};

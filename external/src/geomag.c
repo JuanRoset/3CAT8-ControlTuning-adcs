@@ -41,13 +41,13 @@
 
 */
 
+// Include source file
+
 #include "../include/geomag.h"
 
+// Define coefficient paths
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+const char* wmm_path = "../external/config/WMM.COF";
 
 int my_isnan(double d)
 {
@@ -84,10 +84,11 @@ void igrf_field(double dlat, double dlon, double altm, double time, double mag_f
   double dmin, imin, ddeg, ideg;
   FILE *wmmtemp;
 
-  wmmtemp = fopen("../config/WMM.COF","r");
+  wmmtemp = fopen(wmm_path,"r");
   if (wmmtemp == NULL) 
     {
       fprintf(stderr, "Error opening model file WMM.COF\n");
+      fprintf(stderr, "Full path: %s \n", wmm_path);
       exit(1);
     }
 
@@ -255,7 +256,7 @@ static void E0000(int IENTRY, int *maxdeg, double alt, double glat, double glon,
   switch(IENTRY){case 0: goto GEOMAG; case 1: goto GEOMG1;}
   
  GEOMAG:
-  wmmdat = fopen("../config/WMM.COF","r");
+  wmmdat = fopen(wmm_path,"r");
   if (wmmdat == NULL) 
     {
       fprintf(stderr, "Error opening model file WMM.COF\n");

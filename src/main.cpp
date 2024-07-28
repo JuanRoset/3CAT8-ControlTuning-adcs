@@ -36,13 +36,11 @@
 #include "../include/control_functions.h"
 #include "../include/algebraic_functions.h"
 
-//#include "disturbance_torques.cpp"
-
 // Specify config file paths
 
-std::string filePathOutput = "../data/simulation_output.csv";
-std::string orbitPath = "../data/orbit_file.csv";
-std::string satelliteParamFilePath = "../parameters/satellite_parameters.json";
+std::string filePathOutput            = "../data/simulation_output.csv";
+std::string orbitPath                 = "../data/orbit_file.csv";
+std::string satelliteParamFilePath    = "../parameters/satellite_parameters.json";
 std::string astronomicalParamFilePath = "../parameters/astronomical_parameters.json";
 
 // Declare satellite parameters
