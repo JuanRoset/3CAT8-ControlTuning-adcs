@@ -19,7 +19,7 @@ using json = nlohmann::json;
 
 void satellite_fetch(double inertia[3][3], double & inertia_principal_min, std::string & control_mode, double Kp[3], double Kd[3], double & RW_relaxation, double & Ku, bool & active_force_control, bool & RW_unloading, int& configuration, std::string filePath);
 void simulation_fetch(double & simulation_orbits, double & delta_time, bool & propagate_orbit, bool & gravitational_disturbance, bool & aerodynamic_disturbance, bool & solarPressure_disturbance, double euler_axis[3], double & theta, std::string filePath);
-void write_orbit_state(double delta_time, orbitalElements elements, sunActivity indices, std::string orbitPath, const double iteration_steps);
+void write_orbit_state(double delta_time, orbitalElements elements, sunActivity indices, std::string orbitPath, std::string wmm_path, const double iteration_steps);
 void read_orbit_state(double delta_time,
                       double simulation_time,
                       std::string orbitPath,

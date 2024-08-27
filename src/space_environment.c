@@ -51,7 +51,7 @@ void dipole_magnetic_field(double position[3], double radius, double earth_rotat
     field[2] = B_radial * normalized_position[2] + B_normal * normal_vector[2];
 }
 
-void igrf_magnetic_field(double long_lat[2], double position[3], double radius, double date, double field[3]){
+void igrf_magnetic_field(double long_lat[2], double position[3], double radius, double date, double field[3], const char *wmm_path){
     // Function to approximate Earth's magnetic field in LEO using the simplified dipole model
     // The position vector should be normalized to 1
 
@@ -71,7 +71,7 @@ void igrf_magnetic_field(double long_lat[2], double position[3], double radius, 
     
     // Compute radial and normal magnetic field
     double field_NED[3];
-    igrf_field(long_lat[1], long_lat[0], radius, date, field_NED);
+    igrf_field(long_lat[1], long_lat[0], radius, date, field_NED, wmm_path);
     //double B_radial = - 2 * magnetic_field_equator * pow(radius_Earth / radius, 3) * cos(colatitude);
     //double B_normal = magnetic_field_equator * pow(radius_Earth / radius, 3) * sin(colatitude);
 
@@ -123,7 +123,7 @@ double calculate_density(int year, int doy, int seconds, double altitude, double
     struct nrlmsise_flags flags;
     struct nrlmsise_output output;
 
-    /* Setting up input values */
+    // Setting up input values
     input.doy = doy;
     input.year = year; /* without effect */
     input.sec = seconds;
@@ -135,14 +135,14 @@ double calculate_density(int year, int doy, int seconds, double altitude, double
     input.f107 = f107;
     input.ap = ap;
 
-    /* Setting up flags */
-    flags.switches[0] = 0; /* This flag is always 0 */
+    // Setting up flags
+    flags.switches[0] = 0; // This flag is always 0
     for (int i = 1; i < 24; i++)
-        flags.switches[i] = 1; /* All other flags are set to 1 */
+        flags.switches[i] = 1; // All other flags are set to 1
 
-    /* Calling gtd7 function */
+    // Calling gtd7 function
     gtd7(&input, &flags, &output);
 
-    /* Returning density */
-    return output.d[5] * 1000.0; /* Density is at index 5 in output.d array */
+    // Returning density
+    return output.d[5] * 1000.0; // Density is at index 5 in output.d array
 }

@@ -47,7 +47,7 @@
 
 // Define coefficient paths
 
-const char* wmm_path = "../external/config/WMM.COF";
+//const char* wmm_path = "../../external/config/WMM.COF";
 
 int my_isnan(double d)
 {
@@ -55,7 +55,7 @@ int my_isnan(double d)
 }
 /*************************************************************************/
 
-void igrf_field(double dlat, double dlon, double altm, double time, double mag_field[3]) {
+void igrf_field(double dlat, double dlon, double altm, double time, double mag_field[3], const char *wmm_path) {
   // Function for computing the magnetic field according to IGRF13
   // Inputs:
   // · dlat: latitude in degrees
@@ -114,20 +114,20 @@ void igrf_field(double dlat, double dlon, double altm, double time, double mag_f
     warn_H_strong_val = 99999.0;
     warn_P = 0;
 
-    geomag(&maxdeg);
+    geomag(&maxdeg, wmm_path);
     
   alt = altm;
     
     epochuplim = epochlowlim + epochrange;
     
-    geomg1(alt,dlat,dlon,time,&dec,&dip,&ti,&gv);
+    geomg1(alt,dlat,dlon,time,&dec,&dip,&ti,&gv, wmm_path);
     time1 = time;
     dec1 = dec;
     dip1 = dip;
     ti1 = ti;
     time = time1 + 1.0;
     
-    geomg1(alt,dlat,dlon,time,&dec,&dip,&ti,&gv);
+    geomg1(alt,dlat,dlon,time,&dec,&dip,&ti,&gv, wmm_path);
     time2 = time;
     dec2 = dec;
     dip2 = dip;
@@ -239,7 +239,7 @@ void igrf_field(double dlat, double dlon, double altm, double time, double mag_f
   
 }
 
-static void E0000(int IENTRY, int *maxdeg, double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv)
+static void E0000(int IENTRY, int *maxdeg, double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv, const char *wmm_path)
 {
   static int maxord,i,icomp,n,m,j,D1,D2,D3,D4;
   static double c[13][13],cd[13][13],tc[13][13],dp[13][13],snorm[169],sp[13],cp[13],fn[13],fm[13],pp[13],k[13][13],dtr,a,b,re;
@@ -535,16 +535,16 @@ static void E0000(int IENTRY, int *maxdeg, double alt, double glat, double glon,
 
 /*************************************************************************/
 
-void geomag(int *maxdeg)
+void geomag(int *maxdeg, const char *wmm_path)
 {
-  E0000(0,maxdeg,0.0,0.0,0.0,0.0,NULL,NULL,NULL,NULL);
+  E0000(0,maxdeg,0.0,0.0,0.0,0.0,NULL,NULL,NULL,NULL, wmm_path);
 }
 
 /*************************************************************************/
 
-void geomg1(double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv)
+void geomg1(double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv, const char *wmm_path)
 {
-  E0000(1,NULL,alt,glat,glon,time,dec,dip,ti,gv);
+  E0000(1,NULL,alt,glat,glon,time,dec,dip,ti,gv, wmm_path);
 }
 
 /*************************************************************************/

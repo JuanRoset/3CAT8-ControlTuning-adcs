@@ -131,7 +131,7 @@ void simulation_fetch(double & simulation_orbits, double & delta_time, bool & pr
 }
 
 
-void write_orbit_state(double delta_time, orbitalElements elements, sunActivity indices, std::string orbitPath, const double iteration_steps){
+void write_orbit_state(double delta_time, orbitalElements elements, sunActivity indices, std::string orbitPath, std::string wmm_path, const double iteration_steps){
     // Function for calling the orbit propagation at all times and writing the results on the orbit file
 
     // Preallocate and store propagation of orbit positions for simulation time
@@ -151,7 +151,7 @@ void write_orbit_state(double delta_time, orbitalElements elements, sunActivity 
 
     // Check if the file is opened successfully
     if (!orbitFileOutput.is_open()) {
-        std::cerr << "Error opening the file: " << orbitPath << std::endl;
+        std::cerr << "Error opening the file for writing: " << orbitPath << std::endl;
     }
 
     // Write output data header
@@ -171,7 +171,7 @@ void write_orbit_state(double delta_time, orbitalElements elements, sunActivity 
     for(int t = 0; t < iteration_steps; t++){
         // Update time, position and velocity
         current_time = t * delta_time;
-        orbit_propagate(elements, current_time, position, velocity, quaternion_rsw, long_lat, magnetic_field, sun_position, eclipse, magnetic_inclination, density);
+        orbit_propagate(elements, current_time, position, velocity, quaternion_rsw, long_lat, magnetic_field, sun_position, eclipse, magnetic_inclination, density, wmm_path);
 
 
         // Write the current time and data to the output datafile
@@ -209,7 +209,7 @@ void read_orbit_state(double delta_time,
 
     // Check if the file is opened successfully
     if (!orbitFileInput.is_open()) {
-        std::cerr << "Error opening the file: " << orbitPath << std::endl;
+        std::cerr << "Error opening the file for reading: " << orbitPath << std::endl;
     }
 
     // Read the header line to ignore it

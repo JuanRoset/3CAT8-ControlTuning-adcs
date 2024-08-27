@@ -21,14 +21,14 @@
 
 // Declare coefficient file path
 
-extern const char* wmm_path;
+//extern const char* wmm_path;
 
 // Declare functions
 
-void igrf_field(double dlat, double dlon, double altm, double time, double mag_field[3]);
-static void E0000(int IENTRY, int *maxdeg, double alt,double glat,double glon, double time, double *dec, double *dip, double *ti, double *gv);
-void geomag(int *maxdeg);
-void geomg1(double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv);
+void igrf_field(double dlat, double dlon, double altm, double time, double mag_field[3], const char *wmm_path);
+static void E0000(int IENTRY, int *maxdeg, double alt,double glat,double glon, double time, double *dec, double *dip, double *ti, double *gv, const char *wmm_path);
+void geomag(int *maxdeg, const char *wmm_path);
+void geomg1(double alt, double glat, double glon, double time, double *dec, double *dip, double *ti, double *gv, const char *wmm_path);
 char geomag_introduction(double epochlowlim);
 
 #endif

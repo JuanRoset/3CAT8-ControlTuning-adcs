@@ -4,10 +4,10 @@ import numpy as np
 from matplotlib import rcParams
 from scipy.integrate import cumulative_trapezoid
 
-plt.style.use("../styles/pretty_plots.mplstyle")
+plt.style.use("../../styles/pretty_plots.mplstyle")
 
 # Read the data from CSV
-data = pd.read_csv('../data/simulation_output.csv')
+data = pd.read_csv('../../data/simulation_output.csv')
 
 # Specify orbital period
 period = 1.41 * 3600

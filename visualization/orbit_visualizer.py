@@ -19,7 +19,7 @@ def generate_sphere_points(radius, num_points):
     return x, y, z
 
 # Read the data from CSV
-data = pd.read_csv('../data/orbit_file.csv')
+data = pd.read_csv('../../data/orbit_file.csv')
 
 # Extracting position data
 time = data['Time']

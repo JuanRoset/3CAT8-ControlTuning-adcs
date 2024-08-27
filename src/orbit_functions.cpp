@@ -32,7 +32,7 @@ double find_eccentric_anomaly(orbitalElements elements, double mean_anomaly, dou
     return NAN; // Not a Number
 }
 
-void orbit_propagate(orbitalElements elements, double time, double* position, double* velocity, double* quaternion_rsw, double long_lat[2], double magnetic_field[3], double sun_position[3], double& eclipse, double& geomagnetic_inclination, double& density){
+void orbit_propagate(orbitalElements elements, double time, double* position, double* velocity, double* quaternion_rsw, double long_lat[2], double magnetic_field[3], double sun_position[3], double& eclipse, double& geomagnetic_inclination, double& density, std::string wmm_path){
     // Function for finding the position and velocity vector for a given orbit  
 
     // Find mean and eccentric anomalies, M and E
@@ -126,7 +126,7 @@ void orbit_propagate(orbitalElements elements, double time, double* position, do
 
     // Compute magnetic field in ECI frame
     double igrf_date = double(elements.start_year + (elements.start_doy + current_day_fraction / (24.0 * 3600.0)) / 365.2425);
-    igrf_magnetic_field(long_lat, position, position_norm, igrf_date, magnetic_field);
+    igrf_magnetic_field(long_lat, position, position_norm, igrf_date, magnetic_field, wmm_path.c_str());
 
     // Compute atmospheric density
     int day_seconds = int(current_day_fraction * 24 * 3600);

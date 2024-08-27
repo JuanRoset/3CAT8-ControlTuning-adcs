@@ -3,7 +3,7 @@
     "start_epoch": 24012.44686469,
     "delta_time": 0.5,
     "orbit_number": 10,
-    "propagate_orbit": false,
+    "propagate_orbit": true,
     "gravitational_disturbance": true,
     "aerodynamic_disturbance": true,
     "solarPressure_disturbance": true,

@@ -59,7 +59,7 @@ struct sunActivity {
 // Define functions
 
 double find_eccentric_anomaly(orbitalElements elements, double mean_anomaly, double initialGuess, double tolerance, int maxIterations);
-void orbit_propagate(orbitalElements elements, double time, double* position, double* velocity, double* quaternion_rsw, double long_lat[2], double magnetic_field[3], double sun_position[3], double& eclipse, double& geomagnetic_inclination, double& density);
+void orbit_propagate(orbitalElements elements, double time, double* position, double* velocity, double* quaternion_rsw, double long_lat[2], double magnetic_field[3], double sun_position[3], double& eclipse, double& geomagnetic_inclination, double& density, std::string wmm_path);
 void orbit_fetch(orbitalElements& elements, std::string filePath);
 void sun_fetch(sunActivity& indices, std::string filePath);
 double epoch_to_JD(int year,int day_in_year, double day_fraction);

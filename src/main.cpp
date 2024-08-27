@@ -38,10 +38,11 @@
 
 // Specify config file paths
 
-std::string filePathOutput            = "../data/simulation_output.csv";
-std::string orbitPath                 = "../data/orbit_file.csv";
-std::string satelliteParamFilePath    = "../parameters/satellite_parameters.json";
-std::string astronomicalParamFilePath = "../parameters/astronomical_parameters.json";
+std::string satelliteParamFilePath    = "../../parameters/satellite_parameters.json";
+std::string astronomicalParamFilePath = "../../parameters/astronomical_parameters.json";
+std::string filePathOutput            = "../../data/simulation_output.csv";
+std::string orbitPath                 = "../../data/orbit_file.csv";
+std::string magneticCoeffsFilePath    = "../../external/config/WMM.COF";
 
 // Declare satellite parameters
 
@@ -142,7 +143,7 @@ int main(){
 
     // If stated, propagate and store orbit state
     if(propagate_orbit == true){
-        write_orbit_state(delta_time, elements, sun_indices, orbitPath, iteration_steps);
+        write_orbit_state(delta_time, elements, sun_indices, orbitPath, magneticCoeffsFilePath, iteration_steps);
     }
 
     // Print status
@@ -162,7 +163,6 @@ int main(){
     
     // Compute mean angular motion for the detumbling
     double omega_o = elements.mean_motion * 2 * pi / (24.0 * 3600.0);
-
 
     // Find inverse of inertia matrix
     double total_inertia[3][3] = {0.0};
@@ -541,9 +541,9 @@ int main(){
     }
 
     // Call external visualization scripts
-    system("python ../visualization/control_visualizer.py");
-    system("python ../visualization/3D_visualizer.py");
-    system("python ../visualization/orbit_visualizer.py");
+    system("python ../../visualization/control_visualizer.py");
+    system("python ../../visualization/3D_visualizer.py");
+    system("python ../../visualization/orbit_visualizer.py");
 
     return 0;
 }
