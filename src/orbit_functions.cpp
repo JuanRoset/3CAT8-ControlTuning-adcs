@@ -4,30 +4,28 @@
 
 // Define functions
 
-double find_eccentric_anomaly(orbitalElements elements, double mean_anomaly, double initialGuess, double tolerance = 1e-6, int maxIterations = 100){
+double find_eccentric_anomaly(double eccentricity, double mean_anomaly, double initial_guess, double tolerance = 1e-6, int max_iterations = 100){
     // Function to perform Newton-Raphson iteration for finding the mean eccentricity
 
-    double eccentric_anomaly[2] = {initialGuess, initialGuess};
-    double residue = 0;
+    // Initialize array with old and new values of the eccentric anomaly
+    double eccentric_anomaly[2] = {initial_guess, initial_guess};
+    double residue = 0.0;
 
     // Perform iterations with Newton-Raphson applied to the mean eccentric equation
-    for (int i = 0; i < maxIterations; ++i) {
+    for (int i = 0; i < max_iterations; ++i) {
         
-        eccentric_anomaly[1] = eccentric_anomaly[0] - (eccentric_anomaly[0] * (1 - elements.eccentricity) - mean_anomaly) / (1 - elements.eccentricity * cos(eccentric_anomaly[0]));
-        residue = abs(eccentric_anomaly[1] - eccentric_anomaly[0]);
+        eccentric_anomaly[1] = eccentric_anomaly[0] - (eccentric_anomaly[0] * (1 - eccentricity) - mean_anomaly) / (1 - eccentricity * cos(eccentric_anomaly[0]));
+        residue = fabs(eccentric_anomaly[1] - eccentric_anomaly[0]);
 
         // Check if the solution has converged
-        if (fabs(residue) < tolerance) {
-            // std::cout << "Converged in " << i + 1 << " iterations." << std::endl;
-            return eccentric_anomaly[1];
-        }
+        if (residue < tolerance) return eccentric_anomaly[1];
 
         // If residue is not small enough, reassign trial value
         eccentric_anomaly[0] = eccentric_anomaly[1];
     }
 
     // Return error if solution hasn't converged
-    std::cerr << "Newton-Raphson method for finding Eccentric Anomaly did not converge within the specified number of iterations (" << maxIterations << ")." << std::endl;
+    std::cerr << "Newton-Raphson method for finding Eccentric Anomaly did not converge within the specified number of iterations (" << max_iterations << ")." << std::endl;
     std::cerr << "Check orbital_functions.h code for solution." << std::endl;
     return NAN; // Not a Number
 }
@@ -38,10 +36,10 @@ void orbit_propagate(orbitalElements elements, double time, double* position, do
     // Find mean and eccentric anomalies, M and E
     double real_time = time + elements.orbit_start_time;
     double mean_anomaly = elements.mean_angular_motion * real_time;
-    double eccentric_anomaly = find_eccentric_anomaly(elements, mean_anomaly, 1.0, 1e-6, 10);
+    elements.eccentric_anomaly = find_eccentric_anomaly(elements.eccentricity, mean_anomaly, elements.eccentric_anomaly, 1e-6, 10);
 
     // Find orbit anomaly
-    double theta = 2 * atan(sqrt((1 + elements.eccentricity) / (1 - elements.eccentricity)) * tan(eccentric_anomaly / 2));
+    double theta = 2 * atan(sqrt((1 + elements.eccentricity) / (1 - elements.eccentricity)) * tan(elements.eccentric_anomaly / 2));
 
     // Find position vector norm (radius)
     double radius = pow(elements.angular_momentum, 2) / (mu_Earth * (1 + elements.eccentricity * cos(theta)));
