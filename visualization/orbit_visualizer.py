@@ -1,7 +1,7 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
 from mpl_toolkits.basemap import Basemap
 from matplotlib import rc
 
@@ -26,8 +26,6 @@ time = data['Time']
 x = data['PositionX']
 y = data['PositionY']
 z = data['PositionZ']
-
-print()
 
 longitude = data['Longitude']
 latitude = data['Latitude']

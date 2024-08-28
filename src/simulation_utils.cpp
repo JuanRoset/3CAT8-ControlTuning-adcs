@@ -163,6 +163,7 @@ void write_orbit_state(double delta_time, orbitalElements elements, sunActivity 
                     << "MagX,MagY,MagZ" << ","
                     << "SunX,SunY,SunZ" << ","
                     << "Eclipse" << ","
+                    << "MagneticInclination" << ","
                     << "rho" << "\n";
 
     // Print status
