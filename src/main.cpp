@@ -91,6 +91,7 @@ double delta_time;
 bool propagate_orbit;
 
 std::string integration_method = "Euler";
+//std::string integration_method = "Adams-Basforth";
 
 // Declare variables
 double angular_rate_body[3]   = {0.0};
@@ -99,7 +100,7 @@ double quaternion_o2t[4]      = {0.0};
 
 // Declare functions
 void euler_equation_body_wheels(double torque_body[3], double angular_rate[3], double wheels_angular_rate[3], double inertia_sat[3][3], double inertia_wheels[3][3], double inverse_inertia[3][3], double angular_acceleration[3]);
-void numerical_propagation(double state[], double derivative[], int length, const double delta_time, double* next_state, std::string method);
+void euler_numerical_propagation(double state[], double derivative[], int length, const double delta_time, double* next_state, std::string method);
 
 
 // Main int
@@ -187,6 +188,7 @@ int main(){
         angular_rate_body[1] = - omega_o;
         angular_rate_body[2] = 0.0000;
     }
+    //angular_rate_body[1] = 0.0;
 
     // Open the file for writing
     std::ofstream outFile(filePathOutput);
@@ -204,7 +206,7 @@ int main(){
     double torque_body[3]                    = {0.0};
     double angular_acceleration_body[3]      = {0.0};
     double angular_acceleration_fixed[3]     = {0.0};
-    double angular_rate_f2b[3]               = {0.0};
+    double angular_rate_fixed[3]             = {0.0};
     double angular_rate_f2o[3]               = {0.0};
     double angular_rate_o2b[3]               = {0.0};
     double angular_rate_o2b_body[3]          = {0.0};
@@ -279,28 +281,41 @@ int main(){
         quaternion_f2o[2] = quaternion_rsw_array[2][t];
         quaternion_f2o[3] = quaternion_rsw_array[3][t];
 
+        /*
+        quaternion_f2o[0] = 1.0;
+        quaternion_f2o[1] = 0.0;
+        quaternion_f2o[2] = 0.0;
+        quaternion_f2o[3] = 0.0;
+        */
+
         // Compute the target quaternion -- Now in NADIR
         quaternion_product(quaternion_f2o, quaternion_o2t, quaternion_f2t);
 
         // Compute the quaternion error (inputs must be the attitude quaternion, and the target quaternion wrt. to the same frame - ECI)
         quaternion_error(quaternion_f2t, attitude_quaternion, quaternion_t2b);
 
+        /*
         quaternion_t2b_int[0] += delta_time * quaternion_t2b[0];
         quaternion_t2b_int[1] += delta_time * quaternion_t2b[1];
         quaternion_t2b_int[2] += delta_time * quaternion_t2b[2];
         quaternion_t2b_int[3] += delta_time * quaternion_t2b[3];
+        */
 
-        // Calculate the angular rate in the fixed frame
+        // Calculate the angular rate and acceleration in the fixed frame
         quaternion_b2f[0] = + attitude_quaternion[0];
         quaternion_b2f[1] = - attitude_quaternion[1];
         quaternion_b2f[2] = - attitude_quaternion[2];
         quaternion_b2f[3] = - attitude_quaternion[3];
 
-        angular_rate_f2b[0] = angular_rate_body[0];
-        angular_rate_f2b[1] = angular_rate_body[1];
-        angular_rate_f2b[2] = angular_rate_body[2];
+        angular_rate_fixed[0] = angular_rate_body[0];
+        angular_rate_fixed[1] = angular_rate_body[1];
+        angular_rate_fixed[2] = angular_rate_body[2];
+        quaternion_rotate(quaternion_b2f, angular_rate_fixed, "passive");
 
-        quaternion_rotate(quaternion_b2f, angular_rate_f2b, "passive");
+        angular_acceleration_fixed[0] = angular_acceleration_body[0];
+        angular_acceleration_fixed[1] = angular_acceleration_body[1];
+        angular_acceleration_fixed[2] = angular_acceleration_body[2];
+        quaternion_rotate(quaternion_b2f, angular_acceleration_fixed, "passive");
 
         // Calculate the norm of the position vector
         position_f[0] = position_array[0][t];
@@ -319,9 +334,9 @@ int main(){
         for(int i = 0; i < 3; i++) angular_rate_f2o[i] /= pow(position_norm, 2);
 
         // Calculate the relative angular rate from the orbit frame to the body frame in the fixed frame
-        angular_rate_o2b[0] = angular_rate_f2b[0] - angular_rate_f2o[0];
-        angular_rate_o2b[1] = angular_rate_f2b[1] - angular_rate_f2o[1];
-        angular_rate_o2b[2] = angular_rate_f2b[2] - angular_rate_f2o[2];
+        angular_rate_o2b[0] = angular_rate_fixed[0] - angular_rate_f2o[0];
+        angular_rate_o2b[1] = angular_rate_fixed[1] - angular_rate_f2o[1];
+        angular_rate_o2b[2] = angular_rate_fixed[2] - angular_rate_f2o[2];
 
         // Rotate the relative angular rate of the orbit from the fixed to the body frame
         angular_rate_o2b_body[0] = angular_rate_o2b[0];
@@ -337,38 +352,43 @@ int main(){
 
         quaternion_rotate(attitude_quaternion, magnetic_field_body, "passive");
 
-        // Calculate the Gravitational disturbance torque in body axes
-        gravitational_gradient_torque(total_inertia, attitude_quaternion, position_f, position_norm, gravity_disturbance_torque);
+        if (gravitational_disturbance) {
+            // Calculate the Gravitational disturbance torque in body axes
+            gravitational_gradient_torque(total_inertia, attitude_quaternion, position_f, position_norm, gravity_disturbance_torque);
+        }
+        else for(int g=0; g < 3; g++) gravity_disturbance_torque[g] = 0.0;
 
-        // Calculate the Relative velocity of the oncoming air
-        double atm_angular_rate[3] = {0.0, 0.0, omega_Earth};
-        double atm_velocity[3] = {0.0, 0.0, 0.0};
-        double air_velocity[3] = {0.0, 0.0, 0.0};
+        if (aerodynamic_disturbance) {
+            // Calculate the Relative velocity of the oncoming air
+            double atm_angular_rate[3] = {0.0, 0.0, omega_Earth};
+            double atm_velocity[3] = {0.0, 0.0, 0.0};
+            double air_velocity[3] = {0.0, 0.0, 0.0};
 
-        cross_product_3(atm_angular_rate, position_f, atm_velocity);
-        for(int i = 0; i < 3; i++)
-            air_velocity[i] = atm_velocity[i] - velocity_f[i];
+            cross_product_3(atm_angular_rate, position_f, atm_velocity);
+            for(int i = 0; i < 3; i++)
+                air_velocity[i] = atm_velocity[i] - velocity_f[i];
 
-        double air_velocity_body[3] = {air_velocity[0], air_velocity[1], air_velocity[2]};
-        quaternion_rotate(attitude_quaternion, air_velocity_body, "passive");
+            double air_velocity_body[3] = {air_velocity[0], air_velocity[1], air_velocity[2]};
+            quaternion_rotate(attitude_quaternion, air_velocity_body, "passive");
 
-        // Calculate the Aerodynamic disturbance torque in body axes
-        aerodynamic_torque(configuration, air_velocity_body, air_density[t], aerodynamic_disturbance_torque);
+            // Calculate the Aerodynamic disturbance torque in body axes
+            aerodynamic_torque(configuration, air_velocity_body, air_density[t], aerodynamic_disturbance_torque);
+        }
+        else for(int a=0; a < 3; a++) aerodynamic_disturbance_torque[a] = 0.0;
 
-        // Calculate the SRP disturbance torque in body axes
-        double light_ray[3] = {-sun_position[0][t], -sun_position[1][t], -sun_position[2][t]};
-        quaternion_rotate(attitude_quaternion, light_ray, "passive");
+        if (solarPressure_disturbance) {
+            // Calculate the incident light ray on the satellite
+            double light_ray[3] = {-sun_position[0][t], -sun_position[1][t], -sun_position[2][t]};
+            quaternion_rotate(attitude_quaternion, light_ray, "passive");
 
-        srp_torque(configuration, light_ray, sun_pressure * eclipse[t], srp_disturbance_torque);
-
-        // Set the disturbance torques
-        if (!gravitational_disturbance) for(int g=0; g < 3; g++)     gravity_disturbance_torque[g] = 0.0;
-        if (!aerodynamic_disturbance)   for(int a=0; a < 3; a++) aerodynamic_disturbance_torque[a] = 0.0;
-        if (!solarPressure_disturbance) for(int s=0; s < 3; s++)         srp_disturbance_torque[s] = 0.0;
+            // Calculate the SRP disturbance torque in body axes
+            srp_torque(configuration, light_ray, sun_pressure * eclipse[t], srp_disturbance_torque);
+        }
+        else for(int s=0; s < 3; s++) srp_disturbance_torque[s] = 0.0;
         
         // Add up all disturbance torques
         for (int d = 0; d < 3; d++) disturbance_torque_body[d] = gravity_disturbance_torque[d] + aerodynamic_disturbance_torque[d] + srp_disturbance_torque[d];
-
+        
         // Estimate disturbance torques from previous iteration for active disturbance rejection
         estimate_disturbance_torque(inertia, angular_acceleration_body, angular_rate_body, control_torque_body, disturbance_torques_estimate);
 
@@ -383,6 +403,7 @@ int main(){
         if(control_mode == "ideal"){
             // Calculate the ideal control torque in body axes
             pd_control_torque(quaternion_t2b, Kp, angular_rate_o2b_body, Kd, target_torque_body);
+            //pd_control_torque(quaternion_t2b, Kp, angular_rate_body, Kd, target_torque_body);
 
             // Assign the ideal torques
             control_torque_body[0] = target_torque_body[0];
@@ -507,25 +528,47 @@ int main(){
         euler_equation_body_wheels(torque_body, angular_rate_body, angular_rate_wheels, inertia, inertia_wheels, total_inverse_inertia, angular_acceleration_body);
         //euler_equation_body(torque_body, angular_rate_body, inertia, total_inverse_inertia, angular_acceleration_body);
 
-        // Propagate the fixed frame Angular rate with its acceleration and derivatives respectively
-        numerical_propagation(angular_rate_body, angular_acceleration_body, 3, delta_time, angular_rate_body, integration_method);
+        // Convert angular acceleration to body frame for propagation
+        /*
+        angular_acceleration_fixed[0] = angular_acceleration_body[0];
+        angular_acceleration_fixed[1] = angular_acceleration_body[1];
+        angular_acceleration_fixed[2] = angular_acceleration_body[2];
+        quaternion_rotate(quaternion_b2f, angular_acceleration_fixed, "passive");
+        */
+
+        // Propagate the angular rate with its acceleration and derivatives respectively
+        euler_numerical_propagation(angular_rate_body, angular_acceleration_body, 3, delta_time, angular_rate_body, integration_method);
 
         // Calculate the attitude quaternion derivative
         attitude_quaternion_differentiate(angular_rate_body, attitude_quaternion, attitude_quaternion_derivative);
 
         // Propagate the Attitude quaternion with its derivative respectively
-        numerical_propagation(attitude_quaternion, attitude_quaternion_derivative, 4, delta_time, attitude_quaternion, integration_method);
+        euler_numerical_propagation(attitude_quaternion, attitude_quaternion_derivative, 4, delta_time, attitude_quaternion, integration_method);
 
         // Normalize the  next quaternion
         normalize_quaternion(attitude_quaternion);
 
+        // Convert propagated angular rate back to body-frame
+        /*
+        angular_rate_body[0] = angular_rate_fixed[0];
+        angular_rate_body[1] = angular_rate_fixed[1];
+        angular_rate_body[2] = angular_rate_fixed[2];
+        quaternion_rotate(attitude_quaternion, angular_rate_body, "passive");
+        */
+
         // Write the current time and data to the output datafile
         outFile << delta_time * t << ","
-                << angular_rate_body[0] << "," << angular_rate_body[1] << "," << angular_rate_body[2] << ","
-                //<< angular_rate_o2b_body[0] << "," << angular_rate_o2b_body[1] << "," << angular_rate_o2b_body[2] << ","
+                
+                //<< angular_rate_body[0] << "," << angular_rate_body[1] << "," << angular_rate_body[2] << ","
+                //<< angular_rate_fixed[0] << "," << angular_rate_fixed[1] << "," << angular_rate_fixed[2] << ","
+                << angular_rate_o2b_body[0] << "," << angular_rate_o2b_body[1] << "," << angular_rate_o2b_body[2] << ","
+
                 << attitude_quaternion[0] << "," << attitude_quaternion[1] << "," << attitude_quaternion[2] << "," << attitude_quaternion[3] << ","
                 << quaternion_f2o[0] << "," << quaternion_f2o[1] << "," << quaternion_f2o[2] << "," << quaternion_f2o[3] << ","
-                << quaternion_t2b[0] << "," << quaternion_t2b[1] << "," << quaternion_t2b[2] << "," << quaternion_t2b[3] << "," 
+                
+                << quaternion_t2b[0] << "," << quaternion_t2b[1] << "," << quaternion_t2b[2] << "," << quaternion_t2b[3] << ","
+                //<< attitude_quaternion[0] << "," << attitude_quaternion[1] << "," << attitude_quaternion[2] << "," << attitude_quaternion[3] << ","
+                
                 << magnetorquer_current[0] << "," << magnetorquer_current[1] << "," << magnetorquer_current[2] << ","
                 << magnetorquer_power[0] << "," << magnetorquer_power[1] << "," << magnetorquer_power[2] << ","
                 << magnetorquer_torque_body[0] << "," << magnetorquer_torque_body[1] << "," << magnetorquer_torque_body[2]  << ","
@@ -537,13 +580,15 @@ int main(){
                 << aerodynamic_disturbance_torque[0] << "," << aerodynamic_disturbance_torque[1] << "," << aerodynamic_disturbance_torque[2] << ","
                 << srp_disturbance_torque[0] << "," << srp_disturbance_torque[1] << "," << srp_disturbance_torque[2] << "\n";
 
-
     }
+
+    // Close output file
+    outFile.close();
 
     // Call external visualization scripts
     system("python ../../visualization/control_visualizer.py");
     system("python ../../visualization/3D_visualizer.py");
-    system("python ../../visualization/orbit_visualizer.py");
+    //system("python ../../visualization/orbit_visualizer.py");
 
     return 0;
 }
@@ -553,8 +598,6 @@ int main(){
 void euler_equation_body_wheels(double torque_body[3], double angular_rate[3], double wheels_angular_rate[3], double inertia_sat[3][3], double inertia_wheels[3][3], double inverse_inertia[3][3], double angular_acceleration[3]){
     // Function for computing the angular acceleration of the body on body axes for a given torque, angular rate and inertia tensor
     // The output angular acceleration should be a 1D array of length 3
-
-    // TODO: Add reaction wheel components
 
     // Compute the matrix product between the total inertia tensor and angular rate + the wheels' inertia and their angular rate
     double IcWb[3] = {0};
@@ -589,7 +632,7 @@ void euler_equation_body_wheels(double torque_body[3], double angular_rate[3], d
 
 }
 
-void numerical_propagation(double state[], double derivative[], int length, const double delta_time, double* next_state, std::string method){
+void euler_numerical_propagation(double state[], double derivative[], int length, const double delta_time, double* next_state, std::string method){
     // Function to numerically integrate a given state vector forwards in time
 
     // Apply simple Euler method

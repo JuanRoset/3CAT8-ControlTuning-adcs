@@ -187,6 +187,9 @@ void write_orbit_state(double delta_time, orbitalElements elements, sunActivity 
                     << magnetic_inclination << ","
                     << density << "\n";
     }
+
+    // Close output file
+    orbitFileOutput.close();
 }
 
 void read_orbit_state(double delta_time,

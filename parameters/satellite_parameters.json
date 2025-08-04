@@ -2,30 +2,30 @@
   "SimulationParameters": {
     "start_epoch": 24012.44686469,
     "delta_time": 0.5,
-    "orbit_number": 10,
-    "propagate_orbit": true,
+    "orbit_number": 10.0,
+    "propagate_orbit": false,
     "gravitational_disturbance": true,
     "aerodynamic_disturbance": true,
     "solarPressure_disturbance": true,
-    "axis_disturbance_x": 1.0,
+    "axis_disturbance_x": 0.8,
     "axis_disturbance_y": 1.0,
-    "axis_disturbance_z": 1.0,
-    "angle_disturbance_deg": 10.0
+    "axis_disturbance_z": 0.3,
+    "angle_disturbance_deg": 25.0
   },
 
   "SatelliteParameters": {
-    "configuration": 0,
+    "configuration": 1,
     "mission": 3,
-    "unloading": true,
+    "unloading": false,
     "afc": true,
     "Ipmin": 0.0603372162768
   },
 
   "ControlParameters": {
-    "Kpx0": 0.00000006,
+    "Kpx0": 0.00000003,
     "Kpy0": 0.00000500,
-    "Kpz0": 0.00000004,
-    "Kdx0": 0.00006,
+    "Kpz0": 0.0000004,
+    "Kdx0": 0.000002,
     "Kdy0": 0.00100,
     "Kdz0": 0.00008,
 
@@ -36,10 +36,10 @@
     "Kdy1": 0.00100,
     "Kdz1": 0.00008,
 
-    "Kpx2": 0.00000001,
-    "Kpy2": 0.000020,
-    "Kpz2": 0.00001,
-    "Kdx2": 0.0001,
+    "Kpx2": 0.0000000001,
+    "Kpy2": 0.000010,
+    "Kpz2": 0.000005,
+    "Kdx2": 0.003,
     "Kdy2": 0.005,
     "Kdz2": 0.0001,
 
