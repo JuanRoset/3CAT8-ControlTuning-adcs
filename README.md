@@ -40,11 +40,10 @@ The _parameters/satellite_parameters.json_ file can be used for changing the phy
 
 ## Usage
 
-Run the compiled executable `main`:
+Run the compiled executable `main` from the build directory:
 
    ```bash
-   cd build/Debug
-   ./main.exe
+   main.exe
    ```
 
 If the _propagate_orbit_ parameter is set to true in the JSON file, the code will propagate the orbit with the specified orbital elements and store the orbital state in the `data/orbit_file.csv` file. If this is set to false, the orbital parameters from previous code executions will be read from this file. Afterwards, the simulation results will be stored in the `data/simulation_output.csv` file for posterior analysis.
@@ -140,9 +139,6 @@ pip install pygame pandas pyquaternion
 
 ### Tasks to Complete
 
-[ ] **Enhance Visualization**
-   - Improve the Python visualization scripts to provide more insightful visualizations of the simulation results.
-
 [ ] **Leave code as function to perform control optimization**
    - Develop a function to quantify and simplify the perturbance torques experienced in the LEO space environment.
 
@@ -150,7 +146,7 @@ pip install pygame pandas pyquaternion
    - Add efficient functions to compute the disturbance torques for simple geometries without relying on the machine-learning methods currently implemented.
 
 [ ] **Performance Optimization**
-   - Optimize the code for better performance, considering larger simulation times and more complex scenarios.
+   - Optimize the code for better performance, mainly when reading the orbital data (changing from .csv to a faster format)
 
 [ ] **Documentation Update**
    - Keep the code documentation up-to-date with any changes or additions.
