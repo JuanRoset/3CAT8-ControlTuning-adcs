@@ -223,8 +223,8 @@ center_matrix_c = rotation_matrix('x', 30)
 center_matrix = np.dot(center_matrix_c, np.dot(center_matrix_a, center_matrix_b))
 
 # Read quaternion data from the CSV file
-file_path = '../../data/simulation_output.csv'
-orbit_path = '../../data/orbit_file.csv'
+file_path = '../data/simulation_output.csv'
+orbit_path = '../data/orbit_file.csv'
 df = pd.read_csv(file_path)
 times = df['Time'].values
 angular_rates = df[['AngularRateX', 'AngularRateY', 'AngularRateZ']].values

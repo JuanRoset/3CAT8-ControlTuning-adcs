@@ -17,6 +17,7 @@ void satellite_fetch(double inertia[3][3], double & inertia_principal_min, std::
     // Read the JSON data from the file
     json root;
     file >> root; // Read directly into the JSON object
+    //json root = json::parse(file);
     file.close();
 
     // Fetch the desired satellite configuration

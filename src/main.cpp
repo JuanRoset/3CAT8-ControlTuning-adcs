@@ -38,11 +38,11 @@
 
 // Specify config file paths
 
-std::string satelliteParamFilePath    = "../../parameters/satellite_parameters.json";
-std::string astronomicalParamFilePath = "../../parameters/astronomical_parameters.json";
-std::string filePathOutput            = "../../data/simulation_output.csv";
-std::string orbitPath                 = "../../data/orbit_file.csv";
-std::string magneticCoeffsFilePath    = "../../external/config/WMM.COF";
+std::string satelliteParamFilePath    = "../parameters/satellite_parameters.json";
+std::string astronomicalParamFilePath = "../parameters/astronomical_parameters.json";
+std::string filePathOutput            = "../data/simulation_output.csv";
+std::string orbitPath                 = "../data/orbit_file.csv";
+std::string magneticCoeffsFilePath    = "../external/config/WMM.COF";
 
 // Declare satellite parameters
 
@@ -280,13 +280,6 @@ int main(){
         quaternion_f2o[1] = quaternion_rsw_array[1][t];
         quaternion_f2o[2] = quaternion_rsw_array[2][t];
         quaternion_f2o[3] = quaternion_rsw_array[3][t];
-
-        /*
-        quaternion_f2o[0] = 1.0;
-        quaternion_f2o[1] = 0.0;
-        quaternion_f2o[2] = 0.0;
-        quaternion_f2o[3] = 0.0;
-        */
 
         // Compute the target quaternion -- Now in NADIR
         quaternion_product(quaternion_f2o, quaternion_o2t, quaternion_f2t);
@@ -586,9 +579,9 @@ int main(){
     outFile.close();
 
     // Call external visualization scripts
-    system("python ../../visualization/control_visualizer.py");
-    system("python ../../visualization/3D_visualizer.py");
-    //system("python ../../visualization/orbit_visualizer.py");
+    system("python ../visualization/control_visualizer.py");
+    system("python ../visualization/3D_visualizer.py");
+    system("python ../visualization/orbit_visualizer.py");
 
     return 0;
 }
