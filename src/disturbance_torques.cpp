@@ -32,15 +32,15 @@ void gravitational_gradient_torque(double inertia[3][3], double attitude_quatern
 }
 
 
-void aerodynamic_torque(int config, double velocity[3], double density, double * torque_body){
+void aerodynamic_torque(int config, double air_velocity[3], double density, double * torque_body){
     // Function to compute the aerodynamic torques on the satellite
 
     // Find the ray unit vector of air
-    double ray[3] = {velocity[0], velocity[1], velocity[2]};
+    double ray[3] = {air_velocity[0], air_velocity[1], air_velocity[2]};
     normalize_vector(ray, 3);
 
     // Find norm of velocity
-    double velocity_norm = vector_norm(velocity, 3);
+    double velocity_norm = vector_norm(air_velocity, 3);
 
     // Compute pitch and yaw angles
     double pitch, yaw;
