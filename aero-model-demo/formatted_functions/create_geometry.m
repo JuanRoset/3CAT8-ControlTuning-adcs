@@ -1,3 +1,15 @@
+close all
+clear
+clc
+
+%% Specify the configuration:
+
+config = 3;
+file_names = {'3cat8_geometry_bare.mat', '3cat8_geometry_panel.mat', '3cat8_geometry_antenna.mat'};
+file_name = char(file_names{config});
+
+%% Generate the basic body shape
+
 % Set dimensions
 body_width = 0.1;                   % Width of the body
 body_height = 0.2;                  % Height of the body
@@ -68,6 +80,10 @@ surface_rho_d = rho_d .* ones(size(surfaces, 1), 1);
 surface_sigma_n = sigma_n .* ones(size(surfaces, 1), 1);
 surface_sigma_t = sigma_t .* ones(size(surfaces, 1), 1);
 
+%% Add panels if specified
+
+if strcmp(file_name, '3cat8_geometry_panel.mat') || strcmp(file_name, '3cat8_geometry_antenna.mat')
+
 % Add deployable solar panel
 panel_surfaces = [1, 2, 3;
                   2, 3, 4];    % Faces of the solar panel
@@ -91,6 +107,11 @@ vertexs = cat(1, vertexs, panel_vertexs);    % Add panel vertices to vertexs
 surface_normals = cat(1, surface_normals, repmat([0, -1, 0], size(panel_surfaces, 1), 1));    % Update surface normals
 surface_normals = cat(1, surface_normals, repmat([0,  1, 0], size(panel_surfaces, 1), 1));    % Update surface normals
 
+end
+
+%% Add deployable antenna if specified
+
+if strcmp(file_name, '3cat8_geometry_antenna.mat')
 % Add deployable antenna
 antenna_surfaces = [1, 9, 4;
                     1, 4, 5;
@@ -133,6 +154,10 @@ for i = 1:6
 end
 vertexs = cat(1, vertexs, inner_antenna_vertexs);    % Add inner antenna vertices to vertexs
 
+end
+
+%% Do final computations
+
 % Calculate surface centers and values
 surface_values = zeros(size(surfaces,1),1);   % preallocate
 surface_centers = zeros(size(surfaces,1),3);   % preallocate
@@ -151,6 +176,8 @@ for i = 1:size(surfaces,1)
     ac = c - a;
     surface_values(i) = 0.5 * norm(cross(ab, ac));
 end
+
+%% Plot the final shape for verification
 
 % Plotting
 close all
@@ -172,10 +199,15 @@ for i = 1:size(surfaces, 1)
         plot3([point_a(1), point_b(1)], [point_a(2), point_b(2)], [point_a(3), point_b(3)], '-k', 'LineWidth', 1.0)    % Plot edges
     end
 end
-antenna_middle = [-body_height/4, 0, body_length/2];
-plot3([vertexs(13, 1), antenna_middle(1)], [vertexs(13, 2), antenna_middle(2)], [vertexs(13, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
-plot3([vertexs(14, 1), antenna_middle(1)], [vertexs(14, 2), antenna_middle(2)], [vertexs(14, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
-plot3([vertexs(15, 1), antenna_middle(1)], [vertexs(15, 2), antenna_middle(2)], [vertexs(15, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
+
+% Plot antenna wires if specified
+if strcmp(file_name, '3cat8_geometry_antenna.mat')
+    antenna_middle = [-body_height/4, 0, body_length/2];
+    plot3([vertexs(13, 1), antenna_middle(1)], [vertexs(13, 2), antenna_middle(2)], [vertexs(13, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
+    plot3([vertexs(14, 1), antenna_middle(1)], [vertexs(14, 2), antenna_middle(2)], [vertexs(14, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
+    plot3([vertexs(15, 1), antenna_middle(1)], [vertexs(15, 2), antenna_middle(2)], [vertexs(15, 3), antenna_middle(3)], '-k', 'LineWidth', 1.0)    % Plot edges
+end
+
 view([180 + 45, 17])
 
 %xlabel('X-axis (m)');    % Label x-axis
@@ -205,4 +237,5 @@ set(hfig,'Units','centimeters','Position',[3 3 picturewidth hw_ratio*picturewidt
 pos = get(hfig,'Position');
 set(hfig,'PaperPositionMode','Auto','PaperUnits','centimeters','PaperSize',[pos(3), pos(4)])
 
-save('3cat8_geometry.mat', 'vertexs', 'surfaces', 'surface_values', 'surface_centers', 'surface_normals', 'surface_correction', 'surface_rho_a', 'surface_rho_s', 'surface_rho_d', 'surface_sigma_n', 'surface_sigma_t')    % Save geometry to file
+%% Save the geometry
+save(file_name, 'vertexs', 'surfaces', 'surface_values', 'surface_centers', 'surface_normals', 'surface_correction', 'surface_rho_a', 'surface_rho_s', 'surface_rho_d', 'surface_sigma_n', 'surface_sigma_t')    % Save geometry to file

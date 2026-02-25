@@ -15,9 +15,9 @@
 
   "SatelliteParameters": {
     "configuration": 1,
-    "mission": 4,
+    "mission": 3,
     "unloading": false,
-    "afc": true,
+    "afc": false,
     "Ipmin": 0.0603372162768
   },
 
