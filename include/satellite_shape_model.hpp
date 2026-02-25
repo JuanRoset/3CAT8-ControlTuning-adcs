@@ -1,5 +1,5 @@
-#ifndef SURFACE_TORQUES_MODEL_H
-#define SURFACE_TORQUES_MODEL_H
+#ifndef SATELLITE_SHAPE_MODEL_H
+#define SATELLITE_SHAPE_MODEL_H
 
 // Include constants and libraries
 /*
