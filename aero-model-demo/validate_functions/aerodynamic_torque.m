@@ -8,6 +8,7 @@ torque_body = [0, 0, 0];
 
 % Define CG
 position_CG = [0.0, 0.0, 0.0];
+position_CG = [0.05, 0.025, 0.05];
 
 % Specify air ray
 Airspeed_val = norm(air_velocity);
