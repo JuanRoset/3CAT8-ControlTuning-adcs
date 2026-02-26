@@ -1,305 +1,276 @@
-import pygame
 import sys
-from pygame.locals import *
-from math import sin, cos, radians
-from pyquaternion import Quaternion
-import pandas as pd
+import pygame
 import numpy as np
+import pandas as pd
+from math import sin, cos, radians, atan2
+from pygame.locals import *
+from pyquaternion import Quaternion
 
-pygame.init()
 
-# Constants
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
 WIDTH, HEIGHT = 800, 600
 FPS = 1200
+INITIAL_VIEW_MODE = "inertial"
 
-# Sat dimensions
-body_height = 20
-body_width = 10
-body_length = 34.05
-reference = max([body_width, body_height, body_length])
-body_height /= reference * 2
-body_width /= reference * 2
-body_length /= reference * 2
+FOV = 800
+VIEWER_DISTANCE = 7
 
-# Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-RED = (255, 0, 0)
+GRAY  = (128, 128, 128)
+RED   = (255, 0, 0)
 GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-YELLOW = (255, 255, 0)
-VIOLET = (128, 0, 128)  # A common shade of violet
-ORANGE = (255, 165, 0)  # A bright orange
-PURPLE = (128, 0, 128)  # Same as violet for consistency
-BROWN = (139, 69, 19)  # A medium brown
-GRAY = (128, 128, 128)
+BLUE  = (0, 0, 255)
+BROWN = (139, 69, 19)
+ORANGE = (255, 165, 0)
+PURPLE = (128, 0, 128)
 
-# Initialize Pygame window
+
+# ============================================================
+# INITIALIZATION
+# ============================================================
+
+pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Attitude Visualizer")
 clock = pygame.time.Clock()
-available_fonts = pygame.font.get_fonts()
+font = pygame.font.SysFont("consolas", 18)
 
-font = pygame.font.SysFont("consolas", 18)  # Choose a font and size
 
-# Satellite body vertices
-body_vertices = [
-    [+ body_height, - body_width, - body_length],
-    [+ body_height, + body_width, - body_length],
-    [- body_height, + body_width, - body_length],
-    [- body_height, - body_width, - body_length],
-    [+ body_height, - body_width, + body_length],
-    [+ body_height, + body_width, + body_length],
-    [- body_height, + body_width, + body_length],
-    [- body_height, - body_width, + body_length]
-]
+# ============================================================
+# GEOMETRY
+# ============================================================
 
-# Satellite body edges (connecting vertices)
-body_edges = [
-    (0, 1), (1, 2), (2, 3), (3, 0),
-    (4, 5), (5, 6), (6, 7), (7, 4),
-    (0, 4), (1, 5), (2, 6), (3, 7)
-]
+def normalize_dimensions():
+    h, w, l = 20, 10, 34.05
+    ref = max(h, w, l)
+    return h/(2*ref), w/(2*ref), l/(2*ref), ref
 
-camera_vertices = []
-camera_radius = 2.5
-camera_radius /= reference
-camera_center = [- body_height / 2, 0, - body_length]
-camera_poly_number = 20
-for num in range(camera_poly_number + 1):
-    x = camera_center[0] + camera_radius * cos(2 * np.pi * num / camera_poly_number)
-    y = camera_center[1] + camera_radius * sin(2 * np.pi * num / camera_poly_number)
-    camera_vertices.append([x, y, camera_center[2]])
-camera_edges = [(i, i + 1) for i in range(camera_poly_number)]
 
-ring_vertices = []
-ring_radius = 2 * 16
-ring_thickness = 2 * 3.5
-antenna_radius = 2 * 40
-ring_radius /= reference
-ring_thickness /= reference
-antenna_radius /= reference
-antenna_phase = - 0.25
-ring_center = [+ body_height / 2, 0, + body_length * 2.5]
-ring_poly_number = 20
-antenna_poly_number = 3
-for num in range(ring_poly_number + 1):
-    x = ring_center[0] + ring_radius * cos(2 * np.pi * num / ring_poly_number)
-    y = ring_center[1] + ring_radius * sin(2 * np.pi * num / ring_poly_number)
-    ring_vertices.append([x, y, ring_center[2]])
-for num in range(ring_poly_number + 1):
-    x = ring_center[0] + (ring_radius + ring_thickness) * cos(2 * np.pi * num / ring_poly_number)
-    y = ring_center[1] + (ring_radius + ring_thickness) * sin(2 * np.pi * num / ring_poly_number)
-    ring_vertices.append([x, y, ring_center[2]])
-for num in range(antenna_poly_number + 1):
-    x = ring_center[0] + antenna_radius * cos(2 * np.pi * (num / antenna_poly_number + antenna_phase))
-    y = ring_center[1] + antenna_radius * sin(2 * np.pi * (num / antenna_poly_number + antenna_phase))
-    ring_vertices.append([x, y, ring_center[2]])
-ring_vertices.append([ring_center[0], ring_center[1], + body_length])
-ring_edges = [(i, i + 1) for i in range(ring_poly_number)]
-ring_edges += [(i + 1 + ring_poly_number, i + 2 + ring_poly_number) for i in range(ring_poly_number)]
-ring_edges += [(i + 2 + 2 * ring_poly_number, i + 3 + 2 * ring_poly_number) for i in range(antenna_poly_number)]
-ring_edges += [(i + 2 + 2 * ring_poly_number, len(ring_vertices) - 1) for i in range(antenna_poly_number)]
+def build_body(h, w, l):
+    vertices = [
+        [+h,-w,-l],[+h,+w,-l],[-h,+w,-l],[-h,-w,-l],
+        [+h,-w,+l],[+h,+w,+l],[-h,+w,+l],[-h,-w,+l]
+    ]
+    edges = [
+        (0,1),(1,2),(2,3),(3,0),
+        (4,5),(5,6),(6,7),(7,4),
+        (0,4),(1,5),(2,6),(3,7)
+    ]
+    return vertices, edges
 
-# Axes vertices
-axes_vertices = [
-    [0, 0, 0],
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1]
-]
 
-# Axes edges
-axes_edges = [
-    (0, 1),  # x-axis
-    (0, 2),  # y-axis
-    (0, 3)   # z-axis
-]
+def build_circle(center, radius, n):
+    verts = []
+    for i in range(n+1):
+        x = center[0] + radius*cos(2*np.pi*i/n)
+        y = center[1] + radius*sin(2*np.pi*i/n)
+        verts.append([x,y,center[2]])
+    edges = [(i,i+1) for i in range(n)]
+    return verts, edges
 
-# Arrow vertices
-arrow_vertices = [
-    [0, 0, 0],
-    [1, 0, 0]
-]
 
-# Arrow edges
-arrow_edges = [
-    (0, 1)  # x-axis
-]
+def build_camera(ref, h, l):
+    radius = 2.5 / ref
+    center = [-h/2, 0, -l]
+    return build_circle(center, radius, 20)
 
-# Camera parameters
-fov = 800  # Field of view
-viewer_distance = 7
 
-def project_vertices(vertices, viewer_distance, rotation_matrix):
-    projected_vertices = []
-    for vertex in vertices:
-        # Apply rotation
-        rotated_vertex = np.dot(rotation_matrix, vertex)
-        x, y, z = rotated_vertex
-        scale = fov / (-z + viewer_distance)
-        screen_x = int(WIDTH / 2 + x * scale)
-        screen_y = int(HEIGHT / 2 - y * scale)
-        projected_vertices.append((screen_x, screen_y))
-    return projected_vertices
+def build_ring(ref, h, l):
+    ring_radius = 2*16/ref
+    ring_thick  = 2*3.5/ref
+    ant_radius  = 2*40/ref
+    ant_phase   = -0.25
+    center = [+h/2, 0, +l*2.5]
+
+    ring_v, ring_e = build_circle(center, ring_radius, 20)
+
+    outer_v, outer_e = build_circle(center, ring_radius+ring_thick, 20)
+    offset = len(ring_v)
+    outer_e = [(a+offset,b+offset) for a,b in outer_e]
+
+    antenna_v = []
+    for i in range(4):
+        x = center[0] + ant_radius*cos(2*np.pi*(i/3+ant_phase))
+        y = center[1] + ant_radius*sin(2*np.pi*(i/3+ant_phase))
+        antenna_v.append([x,y,center[2]])
+
+    ant_offset = len(ring_v)+len(outer_v)
+    antenna_e = [(ant_offset+i,ant_offset+i+1) for i in range(3)]
+    hub_index = ant_offset+4
+    antenna_v.append([center[0],center[1],+l])
+    antenna_e += [(ant_offset+i,hub_index) for i in range(3)]
+
+    vertices = ring_v + outer_v + antenna_v
+    edges = ring_e + outer_e + antenna_e
+    return vertices, edges
+
+
+AXES_VERTICES = [[0,0,0],[1,0,0],[0,1,0],[0,0,1]]
+AXES_EDGES = [(0,1),(0,2),(0,3)]
+
+
+# ============================================================
+# RENDERING UTILITIES
+# ============================================================
 
 def rotation_matrix(axis, angle_deg):
-    angle_rad = np.radians(angle_deg)
-    c = np.cos(angle_rad)
-    s = np.sin(angle_rad)
-    if axis == 'x':
-        return np.array([[1, 0, 0],
-                         [0, c, -s],
-                         [0, s, c]])
-    elif axis == 'y':
-        return np.array([[c, 0, s],
-                         [0, 1, 0],
-                         [-s, 0, c]])
-    elif axis == 'z':
-        return np.array([[c, -s, 0],
-                         [s, c, 0],
-                         [0, 0, 1]])
-    else:
-        raise ValueError("Axis must be 'x', 'y', or 'z'.")
-    
-def draw_arrow(arrow_vertices, edge, color):
-    arrow_scale = 0.1  # Adjust arrow size as needed
-    arrow_angle = 35
-    start_vertex = arrow_vertices[0]
-    end_vertex = arrow_vertices[1]
-    delta_size = [start_vertex[0] - end_vertex[0], start_vertex[1] - end_vertex[1]]
-    arrow_size = np.linalg.norm(delta_size) * arrow_scale
-    # arrow_size = np.linalg.norm(end_vertex - start_vertex)
-    pygame.draw.line(screen, color, start_vertex, end_vertex, 2)
-    
-    
-    dx = end_vertex[0] - start_vertex[0]
-    dy = end_vertex[1] - start_vertex[1]
-    angle = np.arctan2(dy, dx)
-    # Calculate arrowhead points
-    arrow_point1 = (end_vertex[0] + arrow_size * cos(angle - radians(180 - arrow_angle)), 
-                    end_vertex[1] + arrow_size * sin(angle - radians(180 - arrow_angle)))
-    arrow_point2 = (end_vertex[0] + arrow_size * cos(angle + radians(180 - arrow_angle)), 
-                    end_vertex[1] + arrow_size * sin(angle + radians(180 - arrow_angle)))
-    # Draw arrowhead
-    pygame.draw.line(screen, color, end_vertex, arrow_point1, 2)
-    pygame.draw.line(screen, color, end_vertex, arrow_point2, 2)
+    a = np.radians(angle_deg)
+    c, s = np.cos(a), np.sin(a)
+    if axis=='x': return np.array([[1,0,0],[0,c,-s],[0,s,c]])
+    if axis=='y': return np.array([[c,0,s],[0,1,0],[-s,0,c]])
+    if axis=='z': return np.array([[c,-s,0],[s,c,0],[0,0,1]])
+    raise ValueError("Invalid axis")
 
-def draw_axes(axes_vertices, axes_edges, X_color, Y_color, Z_color):
-    arrow_scale = 0.1  # Adjust arrow size as needed
-    arrow_angle = 35
-    for edge in axes_edges:
-        start_vertex = axes_vertices[edge[0]]
-        end_vertex = axes_vertices[edge[1]]
-        delta_size = [start_vertex[0] - end_vertex[0], start_vertex[1] - end_vertex[1]]
-        arrow_size = np.linalg.norm(delta_size) * arrow_scale
-        # arrow_size = np.linalg.norm(end_vertex - start_vertex)
-        if edge[1] == 1:  # x-axis
-            color = X_color
-        elif edge[1] == 2:  # y-axis
-            color = Y_color
-        else:  # z-axis
-            color = Z_color
-        pygame.draw.line(screen, color, start_vertex, end_vertex, 2)
-        # Draw arrowhead
-        if edge[1] != 0:  # Omit arrowhead for the origin
-            dx = end_vertex[0] - start_vertex[0]
-            dy = end_vertex[1] - start_vertex[1]
-            angle = np.arctan2(dy, dx)
-            # Calculate arrowhead points
-            arrow_point1 = (end_vertex[0] + arrow_size * cos(angle - radians(180 - arrow_angle)), 
-                            end_vertex[1] + arrow_size * sin(angle - radians(180 - arrow_angle)))
-            arrow_point2 = (end_vertex[0] + arrow_size * cos(angle + radians(180 - arrow_angle)), 
-                            end_vertex[1] + arrow_size * sin(angle + radians(180 - arrow_angle)))
-            # Draw arrowhead
-            pygame.draw.line(screen, color, end_vertex, arrow_point1, 2)
-            pygame.draw.line(screen, color, end_vertex, arrow_point2, 2)
 
-# Create rotation matrix for immproved visualization
-center_matrix_a = rotation_matrix('x', 270)
-center_matrix_b = rotation_matrix('z', 225)
-center_matrix_c = rotation_matrix('x', 30)
-#center_matrix_c = rotation_matrix
-center_matrix = np.dot(center_matrix_c, np.dot(center_matrix_a, center_matrix_b))
+def rotate(vertices, q):
+    return [q.rotate(v) for v in vertices]
 
-# Read quaternion data from the CSV file
-file_path = '../data/simulation_output.csv'
-orbit_path = '../data/orbit_file.csv'
-df = pd.read_csv(file_path)
+
+def project(vertices, view_matrix):
+    projected = []
+    for v in vertices:
+        x,y,z = np.dot(view_matrix, v)
+        scale = FOV / (-z + VIEWER_DISTANCE)
+        px = int(WIDTH/2 + x*scale)
+        py = int(HEIGHT/2 - y*scale)
+        projected.append((px,py))
+    return projected
+
+
+def draw_edges(vertices, edges, color):
+    for a,b in edges:
+        pygame.draw.line(screen, color, vertices[a], vertices[b], 2)
+
+
+def draw_arrow(start, end, color):
+    pygame.draw.line(screen, color, start, end, 2)
+
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = np.linalg.norm([dx,dy])
+    arrow_size = length * 0.1
+    angle = atan2(dy, dx)
+    arrow_angle = radians(35)
+
+    p1 = (end[0] - arrow_size*cos(angle-arrow_angle),
+          end[1] - arrow_size*sin(angle-arrow_angle))
+    p2 = (end[0] - arrow_size*cos(angle+arrow_angle),
+          end[1] - arrow_size*sin(angle+arrow_angle))
+
+    pygame.draw.line(screen, color, end, p1, 2)
+    pygame.draw.line(screen, color, end, p2, 2)
+
+
+def draw_axes(vertices, colors):
+    for i,(a,b) in enumerate(AXES_EDGES):
+        draw_arrow(vertices[a], vertices[b], colors[i])
+
+
+# ============================================================
+# VIEW MATRICES
+# ============================================================
+
+center_matrix = (
+    rotation_matrix('x',30) @
+    rotation_matrix('x',270) @
+    rotation_matrix('z',225)
+)
+
+orbit_view_pitch = 30
+orbit_view_matrix = (
+    rotation_matrix('x',270) @
+    rotation_matrix('x',-orbit_view_pitch) @
+    rotation_matrix('y',-90) @
+    rotation_matrix('x',45)
+)
+
+
+# ============================================================
+# DATA
+# ============================================================
+
+df = pd.read_csv('../data/simulation_output.csv')
+dfo = pd.read_csv('../data/orbit_file.csv')
+
 times = df['Time'].values
-angular_rates = df[['AngularRateX', 'AngularRateY', 'AngularRateZ']].values
-quaternions_e2b = df[['Quaternion_e2b_W', 'Quaternion_e2b_X', 'Quaternion_e2b_Y', 'Quaternion_e2b_Z']].values
-quaternions_e2o = df[['Quaternion_e2o_W', 'Quaternion_e2o_X', 'Quaternion_e2o_Y', 'Quaternion_e2o_Z']].values
-dfo = pd.read_csv(orbit_path)
-magnetic_field = dfo[['MagX', 'MagY', 'MagZ']].values
+rates = df[['AngularRateX','AngularRateY','AngularRateZ']].values
+q_e2b_all = df[['Quaternion_e2b_W','Quaternion_e2b_X','Quaternion_e2b_Y','Quaternion_e2b_Z']].values
+q_e2o_all = df[['Quaternion_e2o_W','Quaternion_e2o_X','Quaternion_e2o_Y','Quaternion_e2o_Z']].values
+mag_field = dfo[['MagX','MagY','MagZ']].values
 
-# Main game loop
-for i in range(len(quaternions_e2b)):
+
+# ============================================================
+# BUILD OBJECTS
+# ============================================================
+
+h,w,l,ref = normalize_dimensions()
+body_v, body_e = build_body(h,w,l)
+camera_v, camera_e = build_camera(ref,h,l)
+ring_v, ring_e = build_ring(ref,h,l)
+
+
+# ============================================================
+# MAIN LOOP
+# ============================================================
+
+view_mode = INITIAL_VIEW_MODE
+
+for i in range(len(q_e2b_all)):
+
     for event in pygame.event.get():
         if event.type == QUIT:
             pygame.quit()
             sys.exit()
+        if event.type == KEYDOWN and event.key == K_v:
+            view_mode = "orbit" if view_mode=="inertial" else "inertial"
 
-    # Get quaternion for the current frame
-    current_quaternion = Quaternion(quaternions_e2b[i])
-    orbit_quaternion = Quaternion(quaternions_e2o[i])
-    
-    # Get magnetic field for the current frame
-    current_magnetic_field = magnetic_field[i].tolist()
-    current_magnetic_unit = current_magnetic_field / np.linalg.norm(current_magnetic_field)
+    q_e2b = Quaternion(q_e2b_all[i])
+    q_e2o = Quaternion(q_e2o_all[i])
 
-    # Rotate the cube using quaternion rotation
-    rotated_body_vertices = [current_quaternion.rotate(v) for v in body_vertices]
-    rotated_camera_vertices = [current_quaternion.rotate(v) for v in camera_vertices]
-    rotated_ring_vertices = [current_quaternion.rotate(v) for v in ring_vertices]
-    rotated_body_axes_vertices = [current_quaternion.rotate(v) for v in axes_vertices]
-    rotated_orbit_axes_vertices = [orbit_quaternion.rotate(v) for v in axes_vertices]
+    if view_mode == "inertial":
+        q_body = q_e2b
+        q_orbit = q_e2o
+        view_matrix = center_matrix
+    else:
+        q_body = q_e2o.inverse * q_e2b
+        q_orbit = Quaternion()
+        view_matrix = orbit_view_matrix
 
-    # Project Satellite vertices to 2D screen coordinates
-    projected_body_vertices = project_vertices(rotated_body_vertices, viewer_distance, center_matrix)
-    projected_camera_vertices = project_vertices(rotated_camera_vertices, viewer_distance, center_matrix)
-    projected_ring_vertices = project_vertices(rotated_ring_vertices, viewer_distance, center_matrix)
-
-    # Project axes vertices to 2D screen coordinates
-    projected_body_axes_vertices = project_vertices(rotated_body_axes_vertices, viewer_distance, center_matrix)
-    projected_orbit_axes_vertices = project_vertices(rotated_orbit_axes_vertices, viewer_distance, center_matrix)
-    projected_axes_vertices = project_vertices(axes_vertices, viewer_distance, center_matrix)
-
-    mag_vertices = [[0, 0, 0], current_magnetic_unit]
-    projected_mag_vertices = project_vertices(mag_vertices, viewer_distance, center_matrix)
-
-    # Fill screen black
     screen.fill(BLACK)
 
-    # Draw the body, orbit and fixed axes
-    draw_axes(projected_axes_vertices, axes_edges, GRAY, GRAY, GRAY)
-    draw_axes(projected_orbit_axes_vertices, axes_edges, BROWN, ORANGE, PURPLE)
-    draw_axes(projected_body_axes_vertices, axes_edges, RED, GREEN, BLUE)
+    body_p = project(rotate(body_v,q_body), view_matrix)
+    camera_p = project(rotate(camera_v,q_body), view_matrix)
+    ring_p = project(rotate(ring_v,q_body), view_matrix)
 
-    draw_arrow(projected_mag_vertices, arrow_edges, GRAY)
+    body_axes_p = project(rotate(AXES_VERTICES,q_body), view_matrix)
+    orbit_axes_p = project(rotate(AXES_VERTICES,q_orbit), view_matrix)
+    fixed_axes_p = project(AXES_VERTICES, view_matrix)
+
+    mag_vec = mag_field[i]
+    mag_unit = mag_vec / np.linalg.norm(mag_vec)
+
+    if view_mode == "orbit":
+        mag_unit = q_e2o.inverse.rotate(mag_unit)
     
+    mag_p = project([[0,0,0],mag_unit], view_matrix)
 
-    # Draw the cube
-    for edge in body_edges:
-        start_vertex = projected_body_vertices[edge[0]]
-        end_vertex = projected_body_vertices[edge[1]]
-        pygame.draw.line(screen, WHITE, start_vertex, end_vertex, 2)
+    draw_axes(fixed_axes_p,[GRAY,GRAY,GRAY])
+    draw_axes(orbit_axes_p,[BROWN,ORANGE,PURPLE])
+    draw_axes(body_axes_p,[RED,GREEN,BLUE])
 
-    for edge in camera_edges:
-        start_vertex = projected_camera_vertices[edge[0]]
-        end_vertex = projected_camera_vertices[edge[1]]
-        pygame.draw.line(screen, WHITE, start_vertex, end_vertex, 2)
+    draw_edges(body_p,body_e,WHITE)
+    draw_edges(camera_p,camera_e,WHITE)
+    draw_edges(ring_p,ring_e,WHITE)
 
-    for edge in ring_edges:
-        start_vertex = projected_ring_vertices[edge[0]]
-        end_vertex = projected_ring_vertices[edge[1]]
-        pygame.draw.line(screen, WHITE, start_vertex, end_vertex, 2)
+    draw_arrow(mag_p[0], mag_p[1], GRAY)
 
-    # Display time and angular rates on the screen
-    time_text = font.render(f"Time: {times[i]} s", True, WHITE)
-    screen.blit(time_text, (10, 10))
-    angular_rate_text = font.render(f"Angular Rates (X,Y,Z): {angular_rates[i]}", True, WHITE)
-    screen.blit(angular_rate_text, (10, 50))
+    screen.blit(font.render(f"Time: {times[i]} s",True,WHITE),(10,10))
+    screen.blit(font.render(f"Angular Rates: {rates[i]}",True,WHITE),(10,40))
+    screen.blit(font.render(f"View: {view_mode}",True,WHITE),(10,70))
 
     pygame.display.flip()
     clock.tick(FPS)
