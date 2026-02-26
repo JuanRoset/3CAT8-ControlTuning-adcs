@@ -130,7 +130,7 @@ void orbit_propagate(orbitalElements elements, double time, double* position, do
     int day_seconds = int(current_day_fraction * 24 * 3600);
     double altitude_sphere = position_norm - radius_Earth;
     double LMST = normalize_angle(GMST + longitude) * 180 / pi;
-    density = calculate_density(elements.start_year, elements.start_doy, day_seconds, altitude_sphere, long_lat[1], long_lat[0], LMST, 150, 175, 8);
+    density = calculate_air_density(elements.start_year, elements.start_doy, day_seconds, altitude_sphere, long_lat[1], long_lat[0], LMST, 150, 175, 8);
 
     // Compute approximate sun position
     double mean_sun_anomaly = igrf_date * 2 * pi;

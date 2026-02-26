@@ -121,64 +121,86 @@ void aerodynamic_torque(int config, double air_velocity[3], double density, doub
 }
 
 void srp_torque(int config, double ray[3], double pressure, double * torque_body){
-    // Function to compute the aerodynamic torques on the satellite
+    // Function to compute the solar radiation pressure torques on the satellite
 
-    // Find the ray unit vector of air
-    normalize_vector(ray, 3);
+    // Find the ray unit vector of light (normalize just in case)
+    double light_dir[3] = {ray[0], ray[1], ray[2]};
+    normalize_vector(light_dir, 3);
 
-    // Compute pitch and yaw angles
-    double pitch, yaw;
-    ray_to_angles(ray, pitch, yaw);
-
-    // Select the right coefficients for the regression model
-    double * coefs_x, * coefs_y, * coefs_z;
-    int length_x, length_y, length_z;
+    // Select the right geometry model
+    int n_surfaces = 0;
+    const double (*surface_values)[1] = nullptr;
+    const double (*surface_centers)[3] = nullptr;
+    const double (*surface_normals)[3] = nullptr;
+    const double (*surface_rho_d)[1] = nullptr;
+    const double (*surface_rho_s)[1] = nullptr;
     switch (config) {
-    case 0: // Case of Solar Panel + PocketCubes
+    case 0:
+    case 1: // Case of Solar Panel with or without PocketCubes
 
-        coefs_x = (double *) &coefficients_theta_x_srp_pq[0];
-        coefs_y = (double *) &coefficients_theta_y_srp_pq[0];
-        coefs_z = (double *) &coefficients_theta_z_srp_pq[0];
-        
-        length_x = coefficients_theta_x_srp_pq_length;
-        length_y = coefficients_theta_y_srp_pq_length;
-        length_z = coefficients_theta_z_srp_pq_length;
+        n_surfaces = n_surfaces_panel;
+        surface_values = surface_values_panel;
+        surface_centers = surface_centers_panel;
+        surface_normals = surface_normals_panel;
+        surface_rho_d = surface_rho_d_panel;
+        surface_rho_s = surface_rho_s_panel;
 
         break;
 
-    case 1: // Case of Solar Panel without PocketCubes
+    case 2: // Case of Solar Panel without PocketCubes and antenna
     
-        coefs_x = (double *) &coefficients_theta_x_srp_nopq[0];
-        coefs_y = (double *) &coefficients_theta_y_srp_nopq[0];
-        coefs_z = (double *) &coefficients_theta_z_srp_nopq[0];
-        
-        length_x = coefficients_theta_x_srp_nopq_length;
-        length_y = coefficients_theta_y_srp_nopq_length;
-        length_z = coefficients_theta_z_srp_nopq_length;
-
-        break;
-
-    case 2: // Case of Solar Panel + Antenna
-
-        coefs_x = (double *) &coefficients_theta_x_srp_antenna[0];
-        coefs_y = (double *) &coefficients_theta_y_srp_antenna[0];
-        coefs_z = (double *) &coefficients_theta_z_srp_antenna[0];
-        
-        length_x = coefficients_theta_x_srp_antenna_length;
-        length_y = coefficients_theta_y_srp_antenna_length;
-        length_z = coefficients_theta_z_srp_antenna_length;
+        n_surfaces = n_surfaces_antenna;
+        surface_values = surface_values_antenna;
+        surface_centers = surface_centers_antenna;
+        surface_normals = surface_normals_antenna;
+        surface_rho_d = surface_rho_d_antenna;
+        surface_rho_s = surface_rho_s_antenna;
 
         break;
     
     default:
-        break;
+        torque_body[0] = torque_body[1] = torque_body[2] = 0.0;
+        return;
     }
 
-    // Apply the regression model
-    torque_body[0] = pressure * Xaxis_torqueC(pitch, yaw, config, coefs_x, length_x);
-    torque_body[1] = pressure * Yaxis_torqueC(pitch, yaw, config, coefs_y, length_y);
-    torque_body[2] = pressure * Zaxis_torqueC(pitch, yaw, config, coefs_z, length_z);
+    // Initialize the torque_values
+    torque_body[0] = 0.0;
+    torque_body[1] = 0.0;
+    torque_body[2] = 0.0;
 
+    // Loop through every surface
+    for (int i = 0; i < n_surfaces; i++) {
+
+        // Check if the surface is exposed to the oncoming rays (doesn't account for non-convex same-body occlusions)
+        double surface_normal[3] = {surface_normals[i][0], surface_normals[i][1], surface_normals[i][2]};
+        double ray_dot = dot_product(surface_normal, light_dir, 3);
+        if (ray_dot < 0) {
+            // Retrieve surface data
+            double ray_dot_sq = ray_dot*ray_dot;
+            double rho_d = surface_rho_d[i][0];
+            double rho_s = surface_rho_s[i][0];
+            double surface_value = surface_values[i][0];
+            double surface_center[3] = {surface_centers[i][0], surface_centers[i][1], surface_centers[i][2]};
+            double lever_arm[3] = {surface_center[0] - 0.0, surface_center[1] - 0.0, surface_center[2] - 0.0}; // To modify if CG variations are added
+
+            // Calculate the areodynamic force generated on the specific surface
+            double force_surface[3] = {
+                -pressure*surface_value*ray_dot*((1.0-rho_s)*light_dir[0] + 2.0*(rho_s*ray_dot-rho_d/3.0)*surface_normal[0]),
+                -pressure*surface_value*ray_dot*((1.0-rho_s)*light_dir[1] + 2.0*(rho_s*ray_dot-rho_d/3.0)*surface_normal[1]),
+                -pressure*surface_value*ray_dot*((1.0-rho_s)*light_dir[2] + 2.0*(rho_s*ray_dot-rho_d/3.0)*surface_normal[2])
+            };
+
+            // Calculate the aerodynamic torque generated by the specific surface
+            double torque_surface[3] = {0.0, 0.0, 0.0};
+            cross_product_3(lever_arm, force_surface, torque_surface);
+
+            // Add the contribution of this surface to the total torque
+            torque_body[0] += torque_surface[0];
+            torque_body[1] += torque_surface[1];
+            torque_body[2] += torque_surface[2];
+        }
+
+    }
 }
 
 

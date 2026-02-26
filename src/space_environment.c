@@ -90,7 +90,6 @@ void igrf_magnetic_field(double long_lat[2], double position[3], double radius, 
     for(int i = 0; i < 3; i++){
         field[i] = (field_NED[0] * north_vector[i] + field_NED[1] * east_vector[i] + field_NED[2] * down_vector[i]) * 10e-9;
     }
-
 }
 
 double geomagneticInclination(double orbit_normal[3], double earth_rotation){
@@ -113,11 +112,10 @@ double geomagneticInclination(double orbit_normal[3], double earth_rotation){
     // Compute angle between north pole and orbit plane normal
     double angle_cosine = dot_product(north_pole, orbit_normal, 3) / vector_norm(orbit_normal, 3) / vector_norm(north_pole, 3);
     return acos(angle_cosine);
-
 }
 
-double calculate_density(int year, int doy, int seconds, double altitude, double g_lat, double g_long, double lst, double f107A, double f107, double ap) {
-    // Function to calculate density using NRLMSISE-00 model
+double calculate_air_density(int year, int doy, int seconds, double altitude, double g_lat, double g_long, double lst, double f107A, double f107, double ap) {
+    // Function to calculate air density using NRLMSISE-00 model
 
     struct nrlmsise_input input;
     struct nrlmsise_flags flags;
