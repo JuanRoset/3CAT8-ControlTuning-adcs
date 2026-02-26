@@ -13,7 +13,7 @@ from pyquaternion import Quaternion
 
 WIDTH, HEIGHT = 800, 600
 FPS = 1200
-INITIAL_VIEW_MODE = "inertial"
+INITIAL_VIEW_MODE = "orbit"
 
 FOV = 800
 VIEWER_DISTANCE = 7
@@ -169,6 +169,41 @@ def draw_axes(vertices, colors):
     for i,(a,b) in enumerate(AXES_EDGES):
         draw_arrow(vertices[a], vertices[b], colors[i])
 
+def apply_view(vertices, view_matrix):
+    """Apply visualization rotation but keep 3D coordinates."""
+    return [np.dot(view_matrix, v) for v in vertices]
+
+def draw_edges_depth_sorted(vertices_3d, edges, color):
+    """
+    vertices_3d : vertices after quaternion + view rotation (NOT projected)
+    edges       : list of index pairs
+    """
+
+    # Compute average Z for each edge
+    edge_depth = []
+    for edge in edges:
+        z_avg = (vertices_3d[edge[0]][2] + vertices_3d[edge[1]][2]) / 2
+        edge_depth.append((z_avg, edge))
+
+    # Sort back-to-front (largest negative z first)
+    edge_depth.sort(reverse=True)
+
+    # Project and draw
+    for _, edge in edge_depth:
+        v1 = vertices_3d[edge[0]]
+        v2 = vertices_3d[edge[1]]
+
+        scale1 = FOV / (-v1[2] + VIEWER_DISTANCE)
+        scale2 = FOV / (-v2[2] + VIEWER_DISTANCE)
+
+        p1 = (int(WIDTH/2 + v1[0]*scale1),
+              int(HEIGHT/2 - v1[1]*scale1))
+
+        p2 = (int(WIDTH/2 + v2[0]*scale2),
+              int(HEIGHT/2 - v2[1]*scale2))
+
+        pygame.draw.line(screen, color, p1, p2, 2)
+
 
 # ============================================================
 # VIEW MATRICES
@@ -221,13 +256,15 @@ view_mode = INITIAL_VIEW_MODE
 
 for i in range(len(q_e2b_all)):
 
+    # ---------------- Event Handling ----------------
     for event in pygame.event.get():
         if event.type == QUIT:
             pygame.quit()
             sys.exit()
         if event.type == KEYDOWN and event.key == K_v:
-            view_mode = "orbit" if view_mode=="inertial" else "inertial"
+            view_mode = "orbit" if view_mode == "inertial" else "inertial"
 
+    # ---------------- Quaternions ----------------
     q_e2b = Quaternion(q_e2b_all[i])
     q_e2o = Quaternion(q_e2o_all[i])
 
@@ -240,37 +277,49 @@ for i in range(len(q_e2b_all)):
         q_orbit = Quaternion()
         view_matrix = orbit_view_matrix
 
+    # ---------------- Clear Screen ----------------
     screen.fill(BLACK)
 
-    body_p = project(rotate(body_v,q_body), view_matrix)
-    camera_p = project(rotate(camera_v,q_body), view_matrix)
-    ring_p = project(rotate(ring_v,q_body), view_matrix)
+    # ---------------- Rotate Objects ----------------
+    body_rot = rotate(body_v, q_body)
+    camera_rot = rotate(camera_v, q_body)
+    ring_rot = rotate(ring_v, q_body)
 
-    body_axes_p = project(rotate(AXES_VERTICES,q_body), view_matrix)
-    orbit_axes_p = project(rotate(AXES_VERTICES,q_orbit), view_matrix)
+    # ---------------- Apply View Transform (3D) ----------------
+    body_view = apply_view(body_rot, view_matrix)
+    camera_view = apply_view(camera_rot, view_matrix)
+    ring_view = apply_view(ring_rot, view_matrix)
+
+    # ---------------- Depth Sorted Drawing ----------------
+    draw_edges_depth_sorted(body_view, body_e, WHITE)
+    draw_edges_depth_sorted(camera_view, camera_e, WHITE)
+    draw_edges_depth_sorted(ring_view, ring_e, WHITE)
+
+    # ---------------- Axes (no depth sorting) ----------------
+    body_axes_p  = project(rotate(AXES_VERTICES, q_body), view_matrix)
+    orbit_axes_p = project(rotate(AXES_VERTICES, q_orbit), view_matrix)
     fixed_axes_p = project(AXES_VERTICES, view_matrix)
 
+    draw_axes(fixed_axes_p, [GRAY, GRAY, GRAY])
+    draw_axes(orbit_axes_p, [BROWN, ORANGE, PURPLE])
+    draw_axes(body_axes_p, [RED, GREEN, BLUE])
+
+    # ---------------- Magnetic Vector ----------------
     mag_vec = mag_field[i]
     mag_unit = mag_vec / np.linalg.norm(mag_vec)
 
     if view_mode == "orbit":
         mag_unit = q_e2o.inverse.rotate(mag_unit)
-    
-    mag_p = project([[0,0,0],mag_unit], view_matrix)
 
-    draw_axes(fixed_axes_p,[GRAY,GRAY,GRAY])
-    draw_axes(orbit_axes_p,[BROWN,ORANGE,PURPLE])
-    draw_axes(body_axes_p,[RED,GREEN,BLUE])
-
-    draw_edges(body_p,body_e,WHITE)
-    draw_edges(camera_p,camera_e,WHITE)
-    draw_edges(ring_p,ring_e,WHITE)
+    mag_rot = apply_view([[0,0,0], mag_unit], view_matrix)
+    mag_p = project(mag_rot, np.eye(3))  # already in view frame
 
     draw_arrow(mag_p[0], mag_p[1], GRAY)
 
-    screen.blit(font.render(f"Time: {times[i]} s",True,WHITE),(10,10))
-    screen.blit(font.render(f"Angular Rates: {rates[i]}",True,WHITE),(10,40))
-    screen.blit(font.render(f"View: {view_mode}",True,WHITE),(10,70))
+    # ---------------- HUD ----------------
+    screen.blit(font.render(f"Time: {times[i]} s", True, WHITE), (10,10))
+    screen.blit(font.render(f"Angular Rates: {rates[i]}", True, WHITE), (10,40))
+    screen.blit(font.render(f"View: {view_mode}", True, WHITE), (10,70))
 
     pygame.display.flip()
     clock.tick(FPS)
