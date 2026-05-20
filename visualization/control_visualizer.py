@@ -5,7 +5,10 @@ from matplotlib import rcParams
 from scipy.integrate import cumulative_trapezoid
 
 plt.style.use("../styles/pretty_plots.mplstyle")
-
+plt.rcParams["text.usetex"] = False
+plt.rcParams["font.family"] = "DejaVu Serif"
+plt.rcParams["font.serif"] = ["DejaVu Serif"]
+plt.rcParams["mathtext.fontset"] = "dejavuserif"
 # Read the data from CSV
 data = pd.read_csv('../data/simulation_output.csv')
 

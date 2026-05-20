@@ -5,8 +5,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.basemap import Basemap
 from matplotlib import rc
 
-plt.rc('font', **{'family':'serif', 'serif':['Times'], 'size': 12})
-rc('text', usetex=True)
+plt.rcParams["text.usetex"] = False
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.size"] = 12
 
 # Function to generate points on a sphere in 3D
 def generate_sphere_points(radius, num_points):
