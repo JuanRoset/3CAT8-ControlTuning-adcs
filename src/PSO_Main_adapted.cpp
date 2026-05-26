@@ -5,6 +5,8 @@
 #include <limits>
 #include <algorithm>
 #include <string>
+#include <sstream>
+#include <vector>
 
 // This file uses the same simulation interface as MonteCarlo_Main.cpp.
 // The actual run_simulation(...) function is implemented in Main_Simulation.cpp
@@ -17,6 +19,16 @@
 // ================================================================
 
 constexpr int DIM = 6;  // [Kp_x, Kp_y, Kp_z, Kd_x, Kd_y, Kd_z]
+
+// Fixed PSO size requested for the MC500-seeded run.
+constexpr int N_PARTICLES = 20;
+constexpr int N_ITERATIONS = 25;
+
+// Initial swarm composition:
+// - 18 particles from the best exploration cases in montecarlo_results.csv
+// - 1 particle from the best final/local exploitation case in montecarlo_results.csv
+// - 1 particle from Pau Climent's TFG constants
+constexpr int N_EXPLORATION_SEEDS = 18;
 
 // Gain ranges.
 // The PSO works internally in log10-space because the gains span
@@ -31,7 +43,7 @@ constexpr double LOG_KP_MAX = -5.0;
 constexpr double LOG_KD_MIN = -5.0;
 constexpr double LOG_KD_MAX = -1.0;
 
-// Recommended starting values for this problem.
+// PSO coefficients.
 // w decreases from W_MAX to W_MIN during the optimization.
 constexpr double W_MAX = 0.8;
 constexpr double W_MIN = 0.4;
@@ -43,30 +55,24 @@ constexpr double C2 = 1.5;
 // a factor 10^0.30 ≈ 2 per iteration in any gain.
 constexpr double VMAX_LOG = 0.30;
 
-// Monte Carlo best solution used to seed the PSO.
-// This is the best case shown in your screenshot:
-// Cost = 1.83774
-constexpr bool USE_MONTECARLO_SEED = true;
-
-constexpr double MC_BEST_KP[3] = {
-    1.0e-8,
-    5.91871e-6,
-    1.01381e-8
-};
-
-constexpr double MC_BEST_KD[3] = {
-    2.63505e-4,
-    2.38771e-2,
-    3.99198e-5
-};
-
-// Initial spread around the Monte Carlo seed, in log10-space.
-// 0.20 means that most particles start within a factor 10^0.20 ≈ 1.6
-// from the Monte Carlo gains.
-constexpr double LOCAL_INIT_STD_LOG = 0.20;
-
 // Initial velocity scale, in log10-space.
 constexpr double INITIAL_VELOCITY_FRACTION = 0.20;
+
+// Monte Carlo results generated from the 500-simulation run.
+const std::string MONTECARLO_RESULTS_PATH = "../data/montecarlo_results.csv";
+
+// Pau Climent's TFG constants from the reference table.
+constexpr double PAU_TFG_KP[3] = {
+    6.0e-8,   // X-axis Kp
+    5.0e-6,   // Y-axis Kp
+    4.0e-8    // Z-axis Kp
+};
+
+constexpr double PAU_TFG_KD[3] = {
+    8.0e-5,   // X-axis Kd
+    1.0e-3,   // Y-axis Kd
+    4.0e-5    // Z-axis Kd
+};
 
 struct Particle {
     double position[DIM];
@@ -76,6 +82,24 @@ struct Particle {
     double best_cost;
 
     bool has_personal_best;
+};
+
+struct MonteCarloCandidate {
+    int simulation_id;
+    std::string phase;
+    Gains gains;
+    double cost;
+    double final_attitude_error;
+    double max_angular_rate;
+    double total_power;
+    bool stable;
+};
+
+struct InitialSeed {
+    std::string source;
+    int simulation_id;
+    double csv_cost;
+    Gains gains;
 };
 
 double uniform_real(double a, double b, std::mt19937& rng)
@@ -89,6 +113,159 @@ double clamp_value(double x, double x_min, double x_max)
     if (x < x_min) return x_min;
     if (x > x_max) return x_max;
     return x;
+}
+
+std::vector<std::string> split_csv_line(const std::string& line)
+{
+    std::vector<std::string> tokens;
+    std::stringstream ss(line);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+        tokens.push_back(token);
+    }
+
+    return tokens;
+}
+
+double safe_stod(const std::string& value)
+{
+    if (value == "inf" || value == "INF" || value == "Infinity" || value == "infinity") {
+        return std::numeric_limits<double>::infinity();
+    }
+    return std::stod(value);
+}
+
+std::vector<MonteCarloCandidate> read_montecarlo_results(const std::string& path)
+{
+    std::vector<MonteCarloCandidate> candidates;
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Error opening Monte Carlo results file: " << path << std::endl;
+        return candidates;
+    }
+
+    std::string line;
+    std::getline(file, line); // header
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+
+        std::vector<std::string> cols = split_csv_line(line);
+        if (cols.size() < 13) continue;
+
+        MonteCarloCandidate c;
+        c.simulation_id = std::stoi(cols[0]);
+        c.phase = cols[1];
+
+        c.gains.Kp[0] = safe_stod(cols[2]);
+        c.gains.Kp[1] = safe_stod(cols[3]);
+        c.gains.Kp[2] = safe_stod(cols[4]);
+        c.gains.Kd[0] = safe_stod(cols[5]);
+        c.gains.Kd[1] = safe_stod(cols[6]);
+        c.gains.Kd[2] = safe_stod(cols[7]);
+
+        c.cost = safe_stod(cols[8]);
+        c.final_attitude_error = safe_stod(cols[9]);
+        c.max_angular_rate = safe_stod(cols[10]);
+        c.total_power = safe_stod(cols[11]);
+        c.stable = (std::stoi(cols[12]) != 0);
+
+        if (c.stable && std::isfinite(c.cost)) {
+            candidates.push_back(c);
+        }
+    }
+
+    return candidates;
+}
+
+bool compare_candidate_cost(const MonteCarloCandidate& a, const MonteCarloCandidate& b)
+{
+    return a.cost < b.cost;
+}
+
+std::vector<InitialSeed> build_initial_seeds(const std::string& montecarlo_path)
+{
+    std::vector<InitialSeed> seeds;
+    std::vector<MonteCarloCandidate> all_candidates = read_montecarlo_results(montecarlo_path);
+
+    std::vector<MonteCarloCandidate> exploration_candidates;
+    std::vector<MonteCarloCandidate> exploitation_candidates;
+
+    for (const auto& c : all_candidates) {
+        if (c.phase == "exploration") {
+            exploration_candidates.push_back(c);
+        }
+        else {
+            // In the current Monte Carlo code the local refinement phases are named
+            // local_from_best_1, local_from_best_2, etc. Any non-exploration phase
+            // is treated as an exploitation/local-refinement result.
+            exploitation_candidates.push_back(c);
+        }
+    }
+
+    std::sort(exploration_candidates.begin(), exploration_candidates.end(), compare_candidate_cost);
+    std::sort(exploitation_candidates.begin(), exploitation_candidates.end(), compare_candidate_cost);
+    std::sort(all_candidates.begin(), all_candidates.end(), compare_candidate_cost);
+
+    if (static_cast<int>(exploration_candidates.size()) < N_EXPLORATION_SEEDS) {
+        std::cerr << "Error: not enough stable exploration candidates in "
+                  << montecarlo_path << ". Found " << exploration_candidates.size()
+                  << ", required " << N_EXPLORATION_SEEDS << "." << std::endl;
+        return seeds;
+    }
+
+    // 18 best exploration particles.
+    for (int i = 0; i < N_EXPLORATION_SEEDS; i++) {
+        InitialSeed s;
+        s.source = "MC_exploration_best_" + std::to_string(i + 1);
+        s.simulation_id = exploration_candidates[i].simulation_id;
+        s.csv_cost = exploration_candidates[i].cost;
+        s.gains = exploration_candidates[i].gains;
+        seeds.push_back(s);
+    }
+
+    // 1 best final/local exploitation particle.
+    // If no local phase exists, fall back to the best overall stable candidate.
+    MonteCarloCandidate final_candidate;
+    if (!exploitation_candidates.empty()) {
+        final_candidate = exploitation_candidates.front();
+    }
+    else if (!all_candidates.empty()) {
+        final_candidate = all_candidates.front();
+    }
+    else {
+        std::cerr << "Error: no stable Monte Carlo candidates found in "
+                  << montecarlo_path << "." << std::endl;
+        return std::vector<InitialSeed>();
+    }
+
+    InitialSeed final_seed;
+    final_seed.source = "MC_best_final_exploitation";
+    final_seed.simulation_id = final_candidate.simulation_id;
+    final_seed.csv_cost = final_candidate.cost;
+    final_seed.gains = final_candidate.gains;
+    seeds.push_back(final_seed);
+
+    // 1 particle from Pau Climent's TFG constants.
+    InitialSeed pau_seed;
+    pau_seed.source = "Pau_TFG_reference";
+    pau_seed.simulation_id = -1;
+    pau_seed.csv_cost = std::numeric_limits<double>::quiet_NaN();
+    for (int i = 0; i < 3; i++) {
+        pau_seed.gains.Kp[i] = PAU_TFG_KP[i];
+        pau_seed.gains.Kd[i] = PAU_TFG_KD[i];
+    }
+    seeds.push_back(pau_seed);
+
+    if (static_cast<int>(seeds.size()) != N_PARTICLES) {
+        std::cerr << "Error: initial seed count is " << seeds.size()
+                  << " but N_PARTICLES is " << N_PARTICLES << "." << std::endl;
+        return std::vector<InitialSeed>();
+    }
+
+    return seeds;
 }
 
 double get_lower_bound(int d)
@@ -132,19 +309,26 @@ void gains_to_position(const Gains& gains, double position[DIM])
     }
 }
 
-void initialize_particle(Particle& p, std::mt19937& rng)
+void initialize_particle_from_seed(Particle& p,
+                                   const InitialSeed& seed,
+                                   std::mt19937& rng)
 {
     p.best_cost = std::numeric_limits<double>::infinity();
     p.has_personal_best = false;
+
+    double seed_position[DIM];
+    gains_to_position(seed.gains, seed_position);
 
     for (int d = 0; d < DIM; d++) {
         const double x_min = get_lower_bound(d);
         const double x_max = get_upper_bound(d);
         const double vmax = get_vmax(d);
 
-        p.position[d] = uniform_real(x_min, x_max, rng);
+        // The initial position is exactly the selected Monte Carlo / Pau case.
+        p.position[d] = clamp_value(seed_position[d], x_min, x_max);
 
-        // Small random initial velocity.
+        // A small initial velocity lets the particle start moving after the first
+        // evaluation while preserving the exact seed at iteration 1.
         p.velocity[d] = uniform_real(-INITIAL_VELOCITY_FRACTION * vmax,
                                       INITIAL_VELOCITY_FRACTION * vmax,
                                       rng);
@@ -153,39 +337,24 @@ void initialize_particle(Particle& p, std::mt19937& rng)
     }
 }
 
-void initialize_particle_from_seed(Particle& p,
-                                   const double seed_position[DIM],
-                                   bool exact_seed,
-                                   std::mt19937& rng)
+void write_initial_swarm_header(std::ofstream& file)
 {
-    p.best_cost = std::numeric_limits<double>::infinity();
-    p.has_personal_best = false;
+    file << "Particle,SeedSource,SeedSimulation,SeedCSVCost,"
+         << "Kp_x,Kp_y,Kp_z,"
+         << "Kd_x,Kd_y,Kd_z\n";
+}
 
-    std::normal_distribution<double> local_noise(0.0, LOCAL_INIT_STD_LOG);
-
-    for (int d = 0; d < DIM; d++) {
-        const double x_min = get_lower_bound(d);
-        const double x_max = get_upper_bound(d);
-        const double vmax = get_vmax(d);
-
-        if (exact_seed) {
-            // Particle 1 starts exactly at the best Monte Carlo solution.
-            p.position[d] = clamp_value(seed_position[d], x_min, x_max);
-            p.velocity[d] = 0.0;
-        }
-        else {
-            // The other particles start close to the Monte Carlo solution,
-            // but with random perturbations in log10-space.
-            const double perturbed_position = seed_position[d] + local_noise(rng);
-            p.position[d] = clamp_value(perturbed_position, x_min, x_max);
-
-            p.velocity[d] = uniform_real(-INITIAL_VELOCITY_FRACTION * vmax,
-                                          INITIAL_VELOCITY_FRACTION * vmax,
-                                          rng);
-        }
-
-        p.best_position[d] = p.position[d];
-    }
+void write_initial_swarm_row(std::ofstream& file,
+                             int particle_id,
+                             const InitialSeed& seed)
+{
+    file << particle_id << ","
+         << seed.source << ","
+         << seed.simulation_id << ","
+         << seed.csv_cost << ","
+         << seed.gains.Kp[0] << "," << seed.gains.Kp[1] << "," << seed.gains.Kp[2] << ","
+         << seed.gains.Kd[0] << "," << seed.gains.Kd[1] << "," << seed.gains.Kd[2]
+         << "\n";
 }
 
 void write_result_header(std::ofstream& file)
@@ -240,31 +409,16 @@ void write_best_history_row(std::ofstream& file,
          << "\n";
 }
 
-int main(int argc, char* argv[])
+int main()
 {
-    int n_particles = 20;
-    int n_iterations = 30;
-
-    if (argc > 1) {
-        n_particles = std::stoi(argv[1]);
-    }
-
-    if (argc > 2) {
-        n_iterations = std::stoi(argv[2]);
-    }
-
-    if (n_particles <= 0) {
-        std::cerr << "Error: n_particles must be positive." << std::endl;
-        return 1;
-    }
-
-    if (n_iterations <= 0) {
-        std::cerr << "Error: n_iterations must be positive." << std::endl;
-        return 1;
-    }
-
     std::random_device rd;
     std::mt19937 rng(rd());
+
+    std::vector<InitialSeed> initial_seeds = build_initial_seeds(MONTECARLO_RESULTS_PATH);
+    if (static_cast<int>(initial_seeds.size()) != N_PARTICLES) {
+        std::cerr << "Could not initialize the requested 20-particle swarm." << std::endl;
+        return 1;
+    }
 
     std::ofstream results_file("../data/pso_results.csv");
     if (!results_file.is_open()) {
@@ -278,39 +432,42 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    std::ofstream initial_swarm_file("../data/pso_initial_swarm.csv");
+    if (!initial_swarm_file.is_open()) {
+        std::cerr << "Error opening ../data/pso_initial_swarm.csv" << std::endl;
+        return 1;
+    }
+
     write_result_header(results_file);
     write_best_history_header(best_history_file);
+    write_initial_swarm_header(initial_swarm_file);
 
-    Particle* swarm = new Particle[n_particles];
+    Particle swarm[N_PARTICLES];
 
-    if (USE_MONTECARLO_SEED) {
-        Gains montecarlo_best_gains;
-        for (int i = 0; i < 3; i++) {
-            montecarlo_best_gains.Kp[i] = MC_BEST_KP[i];
-            montecarlo_best_gains.Kd[i] = MC_BEST_KD[i];
+    std::cout << "PSO configuration: " << N_PARTICLES
+              << " particles x " << N_ITERATIONS
+              << " iterations = " << N_PARTICLES * N_ITERATIONS
+              << " simulations." << std::endl;
+
+    std::cout << "Initial swarm composition:" << std::endl;
+    std::cout << "  - 18 particles: best stable exploration cases from Monte Carlo CSV" << std::endl;
+    std::cout << "  -  1 particle : best stable exploitation/local case from Monte Carlo CSV" << std::endl;
+    std::cout << "  -  1 particle : Pau Climent TFG reference constants" << std::endl;
+
+    for (int i = 0; i < N_PARTICLES; i++) {
+        initialize_particle_from_seed(swarm[i], initial_seeds[i], rng);
+        write_initial_swarm_row(initial_swarm_file, i + 1, initial_seeds[i]);
+
+        std::cout << "Particle " << i + 1
+                  << " initialized from " << initial_seeds[i].source;
+        if (initial_seeds[i].simulation_id > 0) {
+            std::cout << " | MC simulation " << initial_seeds[i].simulation_id
+                      << " | CSV cost " << initial_seeds[i].csv_cost;
         }
-
-        double montecarlo_seed_position[DIM];
-        gains_to_position(montecarlo_best_gains, montecarlo_seed_position);
-
-        for (int i = 0; i < n_particles; i++) {
-            const bool exact_seed = (i == 0);
-            initialize_particle_from_seed(swarm[i],
-                                          montecarlo_seed_position,
-                                          exact_seed,
-                                          rng);
-        }
-
-        std::cout << "PSO initialized around the Monte Carlo best solution." << std::endl;
-        std::cout << "Particle 1 is exactly the Monte Carlo best solution." << std::endl;
+        std::cout << std::endl;
     }
-    else {
-        for (int i = 0; i < n_particles; i++) {
-            initialize_particle(swarm[i], rng);
-        }
 
-        std::cout << "PSO initialized with global random particles." << std::endl;
-    }
+    initial_swarm_file.close();
 
     double global_best_position[DIM] = {0.0};
     double global_best_cost = std::numeric_limits<double>::infinity();
@@ -327,22 +484,22 @@ int main(int argc, char* argv[])
     // ================================================================
     // Main PSO loop
     // ================================================================
-    for (int iter = 0; iter < n_iterations; iter++) {
+    for (int iter = 0; iter < N_ITERATIONS; iter++) {
 
         double w = W_MAX;
-        if (n_iterations > 1) {
-            w = W_MAX - (W_MAX - W_MIN) * double(iter) / double(n_iterations - 1);
+        if (N_ITERATIONS > 1) {
+            w = W_MAX - (W_MAX - W_MIN) * double(iter) / double(N_ITERATIONS - 1);
         }
 
         std::cout << "\n===== PSO ITERATION "
-                  << iter + 1 << "/" << n_iterations
+                  << iter + 1 << "/" << N_ITERATIONS
                   << " | w = " << w
                   << " =====" << std::endl;
 
         // ------------------------------------------------------------
         // Evaluate all particles
         // ------------------------------------------------------------
-        for (int i = 0; i < n_particles; i++) {
+        for (int i = 0; i < N_PARTICLES; i++) {
 
             Gains gains = position_to_gains(swarm[i].position);
 
@@ -384,7 +541,7 @@ int main(int argc, char* argv[])
                              is_personal_best,
                              is_global_best);
 
-            std::cout << "[Particle " << i + 1 << "/" << n_particles << "] "
+            std::cout << "[Particle " << i + 1 << "/" << N_PARTICLES << "] "
                       << "Cost = " << result.cost
                       << " | Stable = " << result.stable;
 
@@ -413,7 +570,7 @@ int main(int argc, char* argv[])
         // ------------------------------------------------------------
         // Update all particles
         // ------------------------------------------------------------
-        for (int i = 0; i < n_particles; i++) {
+        for (int i = 0; i < N_PARTICLES; i++) {
 
             for (int d = 0; d < DIM; d++) {
                 const double r1 = uniform_real(0.0, 1.0, rng);
@@ -489,8 +646,6 @@ int main(int argc, char* argv[])
     else {
         std::cerr << "No stable gains found. Final simulation skipped." << std::endl;
     }
-
-    delete[] swarm;
 
     return 0;
 }
